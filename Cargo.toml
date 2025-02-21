@@ -12,5 +12,6 @@ flate2 = { version = "1.0.35", features = ["zlib-ng"] }
 fst = { version = "0.4.7", features = ["levenshtein"] }
 levenshtein = "1.0.5"
 memmap = "0.7.0"
+regex-automata = "0.4.9"
 rocksdb = "0.23.0"
 serde = { version = "1.0.218", features = ["derive"] }

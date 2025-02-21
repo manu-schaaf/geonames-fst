@@ -279,6 +279,7 @@ dependencies = [
  "fst",
  "levenshtein",
  "memmap",
+ "regex-automata",
  "rocksdb",
  "serde",
 ]
