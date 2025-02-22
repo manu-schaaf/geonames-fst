@@ -1,11 +1,21 @@
+use std::sync::Arc;
 use std::{collections::HashMap, fs::File};
 use std::{f32, io};
 
 use anyhow::anyhow;
+use axum::extract::State;
+use axum::response::IntoResponse;
 use fst::{automaton::Levenshtein, IntoStreamer, Map, MapBuilder, Streamer};
 use levenshtein::levenshtein;
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+use axum::{
+    http::StatusCode,
+    routing::{get, post},
+    Json, Router,
+};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct GeoNamesData {
     name: String,
     latitude: f32,
@@ -15,28 +25,119 @@ struct GeoNamesData {
     country_code: String,
 }
 
-fn main() -> anyhow::Result<()> {
+struct AppState {
+    map: Map<Vec<u8>>,
+    data_store: HashMap<u64, GeoNamesData>,
+}
+
+#[tokio::main]
+async fn main() -> Result<(), anyhow::Error> {
+    let app_state = Arc::new(build_fst()?);
+    let app = Router::new().route(
+        "/levenshtein",
+        post(move |body| route_levenshtein(body, Arc::clone(&app_state))),
+    );
+
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:8000").await?;
+    axum::serve(listener, app).await?;
+    Ok(())
+}
+
+#[derive(Serialize)]
+enum ResponseLevenshtein {
+    #[serde(rename = "results")]
+    Results(Vec<ResponseLevenshteinInner>),
+    #[serde(rename = "error")]
+    Error(String),
+}
+
+#[derive(Serialize)]
+struct ResponseLevenshteinInner {
+    key: String,
+    name: String,
+    latitude: f32,
+    longitude: f32,
+    feature_class: String,
+    feature_code: String,
+    country_code: String,
+    distance: usize,
+}
+
+impl ResponseLevenshteinInner {
+    pub fn new(
+        key: &str,
+        dist: usize,
+        gnd: &GeoNamesData,
+    ) -> Self {
+        ResponseLevenshteinInner {
+            key: key.to_string(),
+            name: gnd.name.clone(),
+            latitude: gnd.latitude,
+            longitude: gnd.longitude,
+            feature_class: gnd.feature_class.clone(),
+            feature_code: gnd.feature_code.clone(),
+            country_code: gnd.country_code.clone(),
+            distance: dist,
+        }
+    }
+}
+
+#[derive(Deserialize)]
+struct RequestLevenshtein {
+    query: String,
+    distance: Option<u32>,
+    limit: Option<usize>,
+}
+
+async fn route_levenshtein(
+    Json(request): Json<RequestLevenshtein>,
+    state: Arc<AppState>,
+) -> impl IntoResponse {
+    let raw_query = request.query.trim();
+    let distance = request.distance.unwrap_or(1);
+
+    let query = if let Some(limit) = request.limit {
+        Levenshtein::new_with_limit(&raw_query, distance, limit)
+    } else {
+        Levenshtein::new(&raw_query, distance)
+    };
+
+    if let Ok(query) = query {
+        let mut results = Vec::new();
+        let mut stream = state.as_ref().map.search_with_state(&query).into_stream();
+        while let Some((key, val, _)) = stream.next() {
+            let key = String::from_utf8_lossy(key).to_string();
+            let dist = levenshtein(&raw_query, &key);
+            let val: &GeoNamesData = state.as_ref().data_store.get(&val).unwrap();
+            results.push(ResponseLevenshteinInner::new(&key, dist, val));
+        }
+        results.sort_by(|a, b| a.distance.cmp(&b.distance));
+
+        return (StatusCode::OK, Json(ResponseLevenshtein::Results(results)));
+    } else {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ResponseLevenshtein::Error("Invalid query".to_string())),
+        );
+    }
+}
+
+fn build_fst() -> Result<AppState, anyhow::Error> {
     let mut search_terms: Vec<(String, u64)> = Vec::new();
     let mut data_store: HashMap<u64, GeoNamesData> = HashMap::new();
-
     parse_geonames_file(
         "data/geonames/DE.txt",
         // "data/geonames/allCountries.txt",
         &mut search_terms,
         &mut data_store,
     )?;
-
     println!("Read {} search terms", search_terms.len());
-
     search_terms.sort();
-    // We currently only handle unique, unambiguous identifiers
     search_terms.dedup_by(|(a, _), (b, _)| a == b);
-
     println!(
         "Sorted and deduplicated to {} search terms",
         search_terms.len()
     );
-
     let mut build = MapBuilder::memory();
     for (term, geoname_id) in search_terms {
         build.insert(term, geoname_id)?;
@@ -44,39 +145,8 @@ fn main() -> anyhow::Result<()> {
     let bytes = build.into_inner()?;
     let num_bytes = bytes.len();
     let map = Map::new(bytes)?;
-
     println!("Built FST with {} bytes", num_bytes);
-
-    let mut buffer = String::new();
-    loop {
-        io::stdin().read_line(&mut buffer)?;
-
-        let max_distance: u32 = (buffer.trim().len() / 4).try_into().unwrap_or(4u32);
-        let query = Levenshtein::new(&buffer.trim(), max_distance)
-            .or_else(|_| Levenshtein::new(&buffer, 1))?;
-        let mut stream = map.search_with_state(&query).into_stream();
-
-        let mut results = Vec::new();
-        while let Some((key, val, _)) = stream.next() {
-            let key = String::from_utf8_lossy(key).to_string();
-
-            let dist = levenshtein(&buffer.trim(), &key);
-
-            let val = data_store.get(&val).unwrap();
-
-            results.push((key, dist, val));
-        }
-
-        // sort by dist
-        results.sort_by(|a, b| a.1.cmp(&b.1));
-        for result in results {
-            println!("{} dist:{} {:?}", result.0, result.1, result.2);
-        }
-        println!();
-        buffer.clear();
-    }
-
-    Ok(())
+    Ok(AppState { map, data_store })
 }
 
 fn parse_geonames_file(
