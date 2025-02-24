@@ -1,24 +1,57 @@
 use crate::{AppState, Response};
 
+use std::str::FromStr;
 use std::sync::Arc;
 
 use axum::response::IntoResponse;
 use axum::{http::StatusCode, Json};
-use fst::automaton::Levenshtein;
-use fst::automaton::{Str, Subsequence};
-use fst::Automaton;
+use regex_automata::dfa::dense::DFA;
+use regex_automata::dfa::{dense, Automaton as RegexAutomaton};
+use regex_automata::util::primitives::StateID;
+use regex_automata::Input;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
-pub(crate) struct RequestWithDist {
+pub(crate) struct Request {
     pub query: String,
-    pub distance: Option<u32>,
 }
 
-pub(crate) async fn starts_with(
-    Json(request): Json<RequestWithDist>,
-    state: Arc<AppState>,
-) -> impl IntoResponse {
+#[derive(Debug)]
+struct RegexSearchAutomaton {
+    dfa: DFA<Vec<u32>>,
+    start_state: StateID,
+}
+
+impl FromStr for RegexSearchAutomaton {
+    type Err = anyhow::Error;
+
+    fn from_str(query: &str) -> Result<Self, Self::Err> {
+        let dfa = dense::DFA::new(query)?;
+        let start_state = dfa.start_state_forward(&Input::new(query))?;
+        Ok(RegexSearchAutomaton { dfa, start_state })
+    }
+}
+
+impl fst::Automaton for RegexSearchAutomaton {
+    type State = Option<StateID>;
+
+    #[inline]
+    fn start(&self) -> Option<StateID> {
+        Some(self.start_state)
+    }
+
+    fn is_match(&self, state: &Self::State) -> bool {
+        state
+            .map(|state| self.dfa.is_match_state(self.dfa.next_eoi_state(state)))
+            .unwrap_or(false)
+    }
+
+    fn accept(&self, state: &Self::State, byte: u8) -> Self::State {
+        state.and_then(|state| Some(self.dfa.next_state(state, byte)))
+    }
+}
+
+pub(crate) async fn regex(Json(request): Json<Request>, state: Arc<AppState>) -> impl IntoResponse {
     if request.query.is_empty() {
         return (
             StatusCode::BAD_REQUEST,
@@ -26,73 +59,30 @@ pub(crate) async fn starts_with(
         );
     }
 
-    let query = Str::new(&request.query).starts_with();
+    let dfa = RegexSearchAutomaton::from_str(&request.query);
+    if let Ok(query) = dfa {
+        let results = state.as_ref().searcher.search(query);
 
-    let results =
-        state
-            .as_ref()
-            .searcher
-            .search_with_dist(query, &request.query, &request.distance);
-
-    (StatusCode::OK, Json(Response::ResultsWithDist(results)))
-}
-
-pub(crate) async fn fuzzy(
-    Json(request): Json<RequestWithDist>,
-    state: Arc<AppState>,
-) -> impl IntoResponse {
-    if request.query.is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(Response::Error("Empty query".to_string())),
-        );
-    }
-
-    let query = Subsequence::new(&request.query);
-
-    let results =
-        state
-            .as_ref()
-            .searcher
-            .search_with_dist(query, &request.query, &request.distance);
-
-    (StatusCode::OK, Json(Response::ResultsWithDist(results)))
-}
-
-#[derive(Deserialize)]
-pub(crate) struct RequestWithLimit {
-    query: String,
-    distance: Option<u32>,
-    limit: Option<usize>,
-}
-
-pub(crate) async fn levenshtein(
-    Json(request): Json<RequestWithLimit>,
-    state: Arc<AppState>,
-) -> impl IntoResponse {
-    let distance = request.distance.unwrap_or(1);
-
-    let query = if let Some(limit) = request.limit {
-        Levenshtein::new_with_limit(&request.query, distance, limit)
+        (StatusCode::OK, Json(Response::Results(results)))
     } else {
-        Levenshtein::new(&request.query, distance)
-    };
-
-    if let Ok(query) = query {
-        let results =
-            state
-                .as_ref()
-                .searcher
-                .search_with_dist(query, &request.query, &request.distance);
-        (StatusCode::OK, Json(Response::ResultsWithDist(results)))
-    } else {
-        let error = query.unwrap_err();
+        let e = dfa.unwrap_err();
 
         (
             StatusCode::BAD_REQUEST,
-            Json(Response::Error(
-                format!("LevenshteinError: {:?}", error).to_string(),
-            )),
+            Json(Response::Error(format!("RegexError: {:?}", e).to_string())),
         )
     }
+}
+
+pub(crate) async fn get(Json(request): Json<Request>, state: Arc<AppState>) -> impl IntoResponse {
+    if request.query.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(Response::Error("Empty query".to_string())),
+        );
+    }
+
+    let results = state.as_ref().searcher.get(&request.query);
+
+    (StatusCode::OK, Json(Response::Results(results)))
 }

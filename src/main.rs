@@ -1,5 +1,5 @@
-pub mod regex;
 pub mod search;
+pub mod search_with_dist;
 pub mod utils;
 
 use std::sync::Arc;
@@ -31,23 +31,23 @@ async fn main() -> Result<(), anyhow::Error> {
     let app = Router::new()
         .route("/get", {
             let state = Arc::clone(&app_state);
-            post(move |body| crate::regex::get(body, state))
+            post(move |body| crate::search::get(body, state))
         })
         .route("/starts_with", {
             let state = Arc::clone(&app_state);
-            post(move |body| crate::search::starts_with(body, state))
+            post(move |body| crate::search_with_dist::starts_with(body, state))
         })
         .route("/fuzzy", {
             let state = Arc::clone(&app_state);
-            post(move |body| crate::search::fuzzy(body, state))
+            post(move |body| crate::search_with_dist::fuzzy(body, state))
         })
         .route("/levenshtein", {
             let state = Arc::clone(&app_state);
-            post(move |body| crate::search::levenshtein(body, state))
+            post(move |body| crate::search_with_dist::levenshtein(body, state))
         })
         .route("/regex", {
             let state = Arc::clone(&app_state);
-            post(move |body| crate::regex::regex(body, state))
+            post(move |body| crate::search::regex(body, state))
         });
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8000").await?;
