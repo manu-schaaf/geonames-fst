@@ -16,7 +16,12 @@ pub struct GeoNamesData {
     pub country_code: String,
 }
 
-pub(crate) fn build_fst() -> Result<(Map<Vec<u8>>, HashMap<u64, GeoNamesData>), anyhow::Error> {
+pub(crate) struct AppState {
+    pub map: Map<Vec<u8>>,
+    pub data_store: HashMap<u64, GeoNamesData>,
+}
+
+pub(crate) fn build_fst() -> Result<AppState, anyhow::Error> {
     let mut search_terms: Vec<(String, u64)> = Vec::new();
     let mut data_store: HashMap<u64, GeoNamesData> = HashMap::new();
     parse_geonames_file(
@@ -40,7 +45,7 @@ pub(crate) fn build_fst() -> Result<(Map<Vec<u8>>, HashMap<u64, GeoNamesData>), 
     let num_bytes = bytes.len();
     let map = Map::new(bytes)?;
     println!("Built FST with {} bytes", num_bytes);
-    Ok((map, data_store))
+    Ok(AppState { map, data_store })
 }
 
 pub(crate) fn parse_geonames_file(
