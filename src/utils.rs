@@ -2,12 +2,13 @@ use std::{collections::HashMap, fs::File};
 use std::{f32, io};
 
 use anyhow::anyhow;
-use fst::{Map, MapBuilder};
+use fst::{Automaton, IntoStreamer, Map, MapBuilder, Streamer};
+use levenshtein::levenshtein as levenshtein_dist;
+use serde::Serialize;
 
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct GeoNamesData {
+    pub id: u64,
     pub name: String,
     pub latitude: f32,
     pub longitude: f32,
@@ -16,12 +17,122 @@ pub struct GeoNamesData {
     pub country_code: String,
 }
 
-pub(crate) struct AppState {
+#[derive(Debug, Serialize)]
+pub enum MatchType {
+    Literal(String),
+    Alternative(String),
+    Historic(String),
+    ASCII(String),
+}
+
+#[derive(Debug, Serialize)]
+pub struct GeoNamesSearchResult {
+    key: String,
+    name: String,
+    latitude: f32,
+    longitude: f32,
+    feature_class: String,
+    feature_code: String,
+    country_code: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GeoNamesSearchResultWithDist {
+    key: String,
+    name: String,
+    latitude: f32,
+    longitude: f32,
+    feature_class: String,
+    feature_code: String,
+    country_code: String,
+    distance: usize,
+}
+
+impl GeoNamesSearchResult {
+    pub fn new(key: &str, gnd: &GeoNamesData) -> Self {
+        GeoNamesSearchResult {
+            key: key.to_string(),
+            name: gnd.name.clone(),
+            latitude: gnd.latitude,
+            longitude: gnd.longitude,
+            feature_class: gnd.feature_class.clone(),
+            feature_code: gnd.feature_code.clone(),
+            country_code: gnd.country_code.clone(),
+        }
+    }
+}
+
+impl GeoNamesSearchResultWithDist {
+    pub fn new(key: &str, gnd: &GeoNamesData, dist: usize) -> Self {
+        GeoNamesSearchResultWithDist {
+            key: key.to_string(),
+            name: gnd.name.clone(),
+            latitude: gnd.latitude,
+            longitude: gnd.longitude,
+            feature_class: gnd.feature_class.clone(),
+            feature_code: gnd.feature_code.clone(),
+            country_code: gnd.country_code.clone(),
+            distance: dist,
+        }
+    }
+}
+
+pub struct GeoNamesSearcher {
     pub map: Map<Vec<u8>>,
     pub data_store: HashMap<u64, GeoNamesData>,
 }
 
-pub(crate) fn build_fst() -> Result<AppState, anyhow::Error> {
+impl GeoNamesSearcher {
+    pub fn get(&self, query: &str) -> Vec<GeoNamesSearchResult> {
+        self.map
+            .get(query)
+            .map(|gnd| {
+                let gnd: &GeoNamesData = self.data_store.get(&gnd).unwrap();
+                vec![GeoNamesSearchResult::new(query, gnd)]
+            })
+            .unwrap_or_default()
+    }
+
+    pub fn search(&self, query: impl Automaton) -> Vec<GeoNamesSearchResult> {
+        let mut stream = self.map.search(&query).into_stream();
+        let mut results = Vec::new();
+        while let Some((key, gnd)) = stream.next() {
+            let key = String::from_utf8_lossy(key).to_string();
+            let gnd: &GeoNamesData = self.data_store.get(&gnd).unwrap();
+            results.push(GeoNamesSearchResult::new(&key, gnd));
+        }
+
+        results
+    }
+
+    pub fn search_with_dist(
+        &self,
+        query: impl Automaton,
+        raw: &str,
+        max_dist: &Option<u32>,
+    ) -> Vec<GeoNamesSearchResultWithDist> {
+        let mut stream = self.map.search(&query).into_stream();
+        let mut results = Vec::new();
+        while let Some((key, gnd)) = stream.next() {
+            let key = String::from_utf8_lossy(key).to_string();
+
+            let dist = levenshtein_dist(raw, &key);
+            if let Some(distance) = max_dist {
+                if dist > (*distance as usize) {
+                    continue;
+                }
+            }
+
+            let gnd: &GeoNamesData = self.data_store.get(&gnd).unwrap();
+            results.push(GeoNamesSearchResultWithDist::new(&key, gnd, dist));
+        }
+        results.sort_by(|a, b| a.distance.cmp(&b.distance));
+
+        results
+    }
+}
+
+pub(crate) fn build_fst() -> Result<GeoNamesSearcher, anyhow::Error> {
     let mut search_terms: Vec<(String, u64)> = Vec::new();
     let mut data_store: HashMap<u64, GeoNamesData> = HashMap::new();
     parse_geonames_file(
@@ -45,7 +156,7 @@ pub(crate) fn build_fst() -> Result<AppState, anyhow::Error> {
     let num_bytes = bytes.len();
     let map = Map::new(bytes)?;
     println!("Built FST with {} bytes", num_bytes);
-    Ok(AppState { map, data_store })
+    Ok(GeoNamesSearcher { map, data_store })
 }
 
 pub(crate) fn parse_geonames_file(
@@ -70,6 +181,7 @@ pub(crate) fn parse_geonames_file(
         let country_code: String = record.get(8).unwrap_or("<missing>").to_string();
 
         let data = GeoNamesData {
+            id: geoname_id,
             name: name.clone(),
             latitude,
             longitude,
