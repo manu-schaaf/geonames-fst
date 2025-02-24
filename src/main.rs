@@ -22,6 +22,10 @@ async fn main() -> Result<(), anyhow::Error> {
         .route("/levenshtein", {
             let state = Arc::clone(&app_state);
             post(move |body| crate::search::levenshtein(body, state))
+        })
+        .route("/regex", {
+            let state = Arc::clone(&app_state);
+            post(move |body| crate::search::regex(body, state))
         });
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8000").await?;
