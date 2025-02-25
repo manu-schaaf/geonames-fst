@@ -20,20 +20,18 @@ pub struct GeoNamesData {
 
 #[derive(Debug, Serialize)]
 pub struct GeoNamesSearchResult {
-    key: String,
+    key: MatchKey,
     name: String,
     latitude: f32,
     longitude: f32,
     feature_class: String,
     feature_code: String,
     country_code: String,
-    #[serde(rename = "type")]
-    typ: MatchType,
 }
 
 #[derive(Debug, Serialize)]
 pub struct GeoNamesSearchResultWithDist {
-    key: String,
+    key: MatchKey,
     name: String,
     latitude: f32,
     longitude: f32,
@@ -41,21 +39,21 @@ pub struct GeoNamesSearchResultWithDist {
     feature_code: String,
     country_code: String,
     distance: usize,
-    #[serde(rename = "type")]
-    typ: MatchType,
 }
 
 impl GeoNamesSearchResult {
     pub fn new(key: &str, mtch: &MatchType, gnd: &GeoNamesData) -> Self {
         GeoNamesSearchResult {
-            key: key.to_string(),
             name: gnd.name.clone(),
             latitude: gnd.latitude,
             longitude: gnd.longitude,
             feature_class: gnd.feature_class.clone(),
             feature_code: gnd.feature_code.clone(),
             country_code: gnd.country_code.clone(),
-            typ: mtch.clone(),
+            key: MatchKey {
+                name: key.to_string(),
+                typ: mtch.clone(),
+            },
         }
     }
 }
@@ -63,7 +61,6 @@ impl GeoNamesSearchResult {
 impl GeoNamesSearchResultWithDist {
     pub fn new(key: &str, mtch: &MatchType, gnd: &GeoNamesData, dist: usize) -> Self {
         GeoNamesSearchResultWithDist {
-            key: key.to_string(),
             name: gnd.name.clone(),
             latitude: gnd.latitude,
             longitude: gnd.longitude,
@@ -71,12 +68,16 @@ impl GeoNamesSearchResultWithDist {
             feature_code: gnd.feature_code.clone(),
             country_code: gnd.country_code.clone(),
             distance: dist,
-            typ: mtch.clone(),
+            key: MatchKey {
+                name: key.to_string(),
+                typ: mtch.clone(),
+            },
         }
     }
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(tag = "type")]
 pub enum MatchType {
     Name {
         id: u64,
@@ -150,6 +151,13 @@ impl PartialOrd for MatchType {
     }
 }
 
+#[derive(Debug, Serialize)]
+struct MatchKey {
+    name: String,
+    #[serde(flatten)]
+    typ: MatchType,
+}
+
 pub struct GeoNamesSearcher {
     pub map: Map<Vec<u8>>,
     pub geonames: HashMap<u64, GeoNamesData>,
@@ -185,7 +193,7 @@ impl GeoNamesSearcher {
                 GeoNamesSearchResult::new(&key, mtch, gnd)
             }));
         }
-        results.sort_by(|a, b| a.typ.cmp(&b.typ));
+        results.sort_by(|a, b| a.key.typ.cmp(&b.key.typ));
 
         results
     }
@@ -219,19 +227,20 @@ impl GeoNamesSearcher {
 }
 
 pub(crate) fn build_searcher(
-    gn_paths: Vec<&str>,
-    gn_alternate_paths: Option<Vec<&str>>,
+    gn_paths: Vec<String>,
+    gn_alternate_paths: Option<Vec<String>>,
+    gn_alternate_languages: Option<Vec<String>>,
 ) -> Result<GeoNamesSearcher, anyhow::Error> {
     let mut query_pairs: Vec<(String, MatchType)> = Vec::new();
     let mut geonames: HashMap<u64, GeoNamesData> = HashMap::new();
     for path in gn_paths {
-        parse_geonames_file(path, &mut query_pairs, &mut geonames)?;
+        parse_geonames_file(&path, &mut query_pairs, &mut geonames)?;
     }
     println!("Read {} search terms", query_pairs.len());
 
     if let Some(gn_alternate_paths) = gn_alternate_paths {
         for path in gn_alternate_paths {
-            parse_alternate_names_file(path, &mut query_pairs, Some(vec!["", "de", "ger"]))?;
+            parse_alternate_names_file(&path, &mut query_pairs, gn_alternate_languages.as_ref())?;
         }
         println!(
             "Read {} search terms (including alternate names)",
@@ -246,6 +255,10 @@ pub(crate) fn build_searcher(
     let mut search_matches: Vec<Vec<MatchType>> = Vec::new();
 
     for (term, mtch) in query_pairs.into_iter() {
+        if term.is_empty() {
+            continue;
+        }
+
         if term == last_term {
             search_matches.last_mut().unwrap().push(mtch);
         } else {
@@ -320,20 +333,22 @@ pub(crate) fn parse_geonames_file(
 fn parse_alternate_names_file(
     path: &str,
     search_terms: &mut Vec<(String, MatchType)>,
-    include_languages: Option<Vec<&str>>,
+    include_languages: Option<&Vec<String>>,
 ) -> Result<(), anyhow::Error> {
     let mut rdr = csv::ReaderBuilder::new()
         .delimiter(b'\t')
         .from_reader(io::BufReader::new(File::open(path)?));
 
-    let include_languages: HashSet<&str> =
-        HashSet::from_iter(include_languages.unwrap_or_else(|| vec!["", "de", "ger"]));
+    let include_languages: Option<HashSet<&String>> = include_languages.map(HashSet::from_iter);
 
     for row in rdr.records() {
         let record = row?;
 
-        let lang: &str = record.get(2).ok_or(anyhow!("no language"))?;
-        if !include_languages.contains(&lang) {
+        let lang: String = record.get(2).ok_or(anyhow!("no language"))?.to_string();
+        if include_languages
+            .as_ref()
+            .is_some_and(|set| !set.contains(&lang))
+        {
             continue;
         }
 
