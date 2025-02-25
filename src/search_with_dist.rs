@@ -70,6 +70,13 @@ pub(crate) async fn levenshtein(
     Json(request): Json<RequestWithLimit>,
     state: Arc<AppState>,
 ) -> impl IntoResponse {
+    if request.query.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(Response::Error("Empty query".to_string())),
+        );
+    }
+
     let distance = request.distance.unwrap_or(1);
 
     let query = if let Some(limit) = request.limit {
