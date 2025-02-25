@@ -5,6 +5,7 @@ use std::{f32, io};
 use anyhow::anyhow;
 use fst::{Automaton, IntoStreamer, Map, MapBuilder, Streamer};
 use levenshtein::levenshtein as levenshtein_dist;
+use schemars::JsonSchema;
 use serde::Serialize;
 
 #[derive(Debug, Serialize)]
@@ -18,7 +19,7 @@ pub struct GeoNamesData {
     pub country_code: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, JsonSchema)]
 pub struct GeoNamesSearchResult {
     key: MatchKey,
     name: String,
@@ -29,7 +30,7 @@ pub struct GeoNamesSearchResult {
     country_code: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, JsonSchema)]
 pub struct GeoNamesSearchResultWithDist {
     key: MatchKey,
     name: String,
@@ -76,7 +77,7 @@ impl GeoNamesSearchResultWithDist {
     }
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq, JsonSchema)]
 #[serde(tag = "type")]
 pub enum MatchType {
     Name {
@@ -151,7 +152,7 @@ impl PartialOrd for MatchType {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, JsonSchema)]
 struct MatchKey {
     name: String,
     #[serde(flatten)]

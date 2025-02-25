@@ -1,24 +1,25 @@
 use crate::{AppState, Response};
 
-use std::sync::Arc;
-
-use axum::response::IntoResponse;
+use aide::axum::IntoApiResponse;
+use axum::extract::State;
 use axum::{http::StatusCode, Json};
 use fst::automaton::Levenshtein;
 use fst::automaton::{Str, Subsequence};
 use fst::Automaton;
 use serde::Deserialize;
 
-#[derive(Deserialize)]
+use schemars::JsonSchema;
+
+#[derive(Deserialize, JsonSchema)]
 pub(crate) struct RequestWithDist {
     pub query: String,
-    pub distance: Option<u32>,
+    pub max_dist: Option<u32>,
 }
 
 pub(crate) async fn starts_with(
+    State(state): State<AppState>,
     Json(request): Json<RequestWithDist>,
-    state: Arc<AppState>,
-) -> impl IntoResponse {
+) -> impl IntoApiResponse {
     if request.query.is_empty() {
         return (
             StatusCode::BAD_REQUEST,
@@ -30,17 +31,16 @@ pub(crate) async fn starts_with(
 
     let results =
         state
-            .as_ref()
             .searcher
-            .search_with_dist(query, &request.query, &request.distance);
+            .search_with_dist(query, &request.query, &request.max_dist);
 
     (StatusCode::OK, Json(Response::ResultsWithDist(results)))
 }
 
 pub(crate) async fn fuzzy(
+    State(state): State<AppState>,
     Json(request): Json<RequestWithDist>,
-    state: Arc<AppState>,
-) -> impl IntoResponse {
+) -> impl IntoApiResponse {
     if request.query.is_empty() {
         return (
             StatusCode::BAD_REQUEST,
@@ -52,24 +52,23 @@ pub(crate) async fn fuzzy(
 
     let results =
         state
-            .as_ref()
             .searcher
-            .search_with_dist(query, &request.query, &request.distance);
+            .search_with_dist(query, &request.query, &request.max_dist);
 
     (StatusCode::OK, Json(Response::ResultsWithDist(results)))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, JsonSchema)]
 pub(crate) struct RequestWithLimit {
     query: String,
-    distance: Option<u32>,
-    limit: Option<usize>,
+    max_dist: Option<u32>,
+    state_limit: Option<usize>,
 }
 
 pub(crate) async fn levenshtein(
+    State(state): State<AppState>,
     Json(request): Json<RequestWithLimit>,
-    state: Arc<AppState>,
-) -> impl IntoResponse {
+) -> impl IntoApiResponse {
     if request.query.is_empty() {
         return (
             StatusCode::BAD_REQUEST,
@@ -77,10 +76,10 @@ pub(crate) async fn levenshtein(
         );
     }
 
-    let distance = request.distance.unwrap_or(1);
+    let distance = request.max_dist.unwrap_or(1);
 
-    let query = if let Some(limit) = request.limit {
-        Levenshtein::new_with_limit(&request.query, distance, limit)
+    let query = if let Some(state_limit) = request.state_limit {
+        Levenshtein::new_with_limit(&request.query, distance, state_limit)
     } else {
         Levenshtein::new(&request.query, distance)
     };
@@ -88,9 +87,8 @@ pub(crate) async fn levenshtein(
     if let Ok(query) = query {
         let results =
             state
-                .as_ref()
                 .searcher
-                .search_with_dist(query, &request.query, &request.distance);
+                .search_with_dist(query, &request.query, &request.max_dist);
         (StatusCode::OK, Json(Response::ResultsWithDist(results)))
     } else {
         let error = query.unwrap_err();

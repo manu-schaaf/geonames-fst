@@ -1,17 +1,18 @@
 use crate::{AppState, Response};
 
 use std::str::FromStr;
-use std::sync::Arc;
 
-use axum::response::IntoResponse;
+use aide::axum::IntoApiResponse;
+use axum::extract::State;
 use axum::{http::StatusCode, Json};
 use regex_automata::dfa::dense::DFA;
 use regex_automata::dfa::{dense, Automaton as RegexAutomaton};
 use regex_automata::util::primitives::StateID;
 use regex_automata::Input;
+use schemars::JsonSchema;
 use serde::Deserialize;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, JsonSchema)]
 pub(crate) struct Request {
     pub query: String,
 }
@@ -51,7 +52,10 @@ impl fst::Automaton for RegexSearchAutomaton {
     }
 }
 
-pub(crate) async fn regex(Json(request): Json<Request>, state: Arc<AppState>) -> impl IntoResponse {
+pub(crate) async fn regex(
+    State(state): State<AppState>,
+    Json(request): Json<Request>,
+) -> impl IntoApiResponse {
     if request.query.is_empty() {
         return (
             StatusCode::BAD_REQUEST,
@@ -61,7 +65,7 @@ pub(crate) async fn regex(Json(request): Json<Request>, state: Arc<AppState>) ->
 
     let dfa = RegexSearchAutomaton::from_str(&request.query);
     if let Ok(query) = dfa {
-        let results = state.as_ref().searcher.search(query);
+        let results = state.searcher.search(query);
 
         (StatusCode::OK, Json(Response::Results(results)))
     } else {
@@ -74,7 +78,10 @@ pub(crate) async fn regex(Json(request): Json<Request>, state: Arc<AppState>) ->
     }
 }
 
-pub(crate) async fn get(Json(request): Json<Request>, state: Arc<AppState>) -> impl IntoResponse {
+pub(crate) async fn get_geoname(
+    State(state): State<AppState>,
+    Json(request): Json<Request>,
+) -> impl IntoApiResponse {
     if request.query.is_empty() {
         return (
             StatusCode::BAD_REQUEST,
@@ -82,7 +89,7 @@ pub(crate) async fn get(Json(request): Json<Request>, state: Arc<AppState>) -> i
         );
     }
 
-    let results = state.as_ref().searcher.get(&request.query);
+    let results = state.searcher.get(&request.query);
 
     (StatusCode::OK, Json(Response::Results(results)))
 }

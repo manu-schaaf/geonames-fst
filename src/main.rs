@@ -4,17 +4,26 @@ pub mod utils;
 
 use std::sync::Arc;
 
-use axum::{routing::post, Router};
+use aide::axum::routing::{get, post_with};
 use clap::{command, Parser};
+use schemars::JsonSchema;
+use search::get_geoname;
 use serde::Serialize;
+
+use aide::{
+    axum::{ApiRouter, IntoApiResponse},
+    openapi::{Info, OpenApi},
+};
+use axum::{response::IntoResponse, Extension, Json};
 
 use utils::{build_searcher, GeoNamesSearchResult, GeoNamesSearchResultWithDist, GeoNamesSearcher};
 
+#[derive(Clone)]
 struct AppState {
-    searcher: GeoNamesSearcher,
+    searcher: Arc<GeoNamesSearcher>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, JsonSchema)]
 pub(crate) enum Response {
     #[serde(rename = "results")]
     Results(Vec<GeoNamesSearchResult>),
@@ -41,39 +50,48 @@ struct Args {
     languages: Option<Vec<String>>,
 }
 
+async fn serve_api(Extension(api): Extension<OpenApi>) -> impl IntoApiResponse {
+    Json(api).into_response()
+}
+
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     let args = Args::parse();
 
-    println!("args: {:?}", args);
+    let app_state = AppState {
+        searcher: Arc::new(build_searcher(args.paths, args.alternate, args.languages)?),
+    };
 
-    let app_state: Arc<AppState> = Arc::new(AppState {
-        searcher: build_searcher(args.paths, args.alternate, args.languages)?,
-    });
+    let app = ApiRouter::new()
+        .api_route("/get", post_with(get_geoname, |o| o))
+        .api_route(
+            "/starts_with",
+            post_with(crate::search_with_dist::starts_with, |o| o),
+        )
+        .api_route("/fuzzy", post_with(crate::search_with_dist::fuzzy, |o| o))
+        .api_route(
+            "/levenshtein",
+            post_with(crate::search_with_dist::levenshtein, |o| o),
+        )
+        .api_route("/regex", post_with(crate::search::regex, |o| o))
+        .route("/api.json", get(serve_api));
 
-    let app = Router::new()
-        .route("/get", {
-            let state = Arc::clone(&app_state);
-            post(move |body| crate::search::get(body, state))
-        })
-        .route("/starts_with", {
-            let state = Arc::clone(&app_state);
-            post(move |body| crate::search_with_dist::starts_with(body, state))
-        })
-        .route("/fuzzy", {
-            let state = Arc::clone(&app_state);
-            post(move |body| crate::search_with_dist::fuzzy(body, state))
-        })
-        .route("/levenshtein", {
-            let state = Arc::clone(&app_state);
-            post(move |body| crate::search_with_dist::levenshtein(body, state))
-        })
-        .route("/regex", {
-            let state = Arc::clone(&app_state);
-            post(move |body| crate::search::regex(body, state))
-        });
+    let mut api = OpenApi {
+        info: Info {
+            description: Some("GeoNames FST API".to_string()),
+            ..Info::default()
+        },
+        ..OpenApi::default()
+    };
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8000").await?;
-    axum::serve(listener, app).await?;
+    axum::serve(
+        listener,
+        app.finish_api(&mut api)
+            .layer(Extension(Arc::new(api)))
+            .with_state(app_state)
+            .into_make_service(),
+    )
+    .await?;
     Ok(())
 }
