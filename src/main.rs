@@ -7,7 +7,7 @@ use std::sync::Arc;
 use axum::{routing::post, Router};
 use serde::Serialize;
 
-use utils::{build_fst, GeoNamesSearchResult, GeoNamesSearchResultWithDist, GeoNamesSearcher};
+use utils::{build_searcher, GeoNamesSearchResult, GeoNamesSearchResultWithDist, GeoNamesSearcher};
 
 struct AppState {
     searcher: GeoNamesSearcher,
@@ -26,7 +26,10 @@ pub(crate) enum Response {
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     let app_state: Arc<AppState> = Arc::new(AppState {
-        searcher: build_fst()?,
+        searcher: build_searcher(
+            vec!["data/geonames/DE.txt"],
+            Some(vec!["data/geonames/alternateNames/DE.txt"]),
+        )?,
     });
     let app = Router::new()
         .route("/get", {
