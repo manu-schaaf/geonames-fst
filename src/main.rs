@@ -3,7 +3,6 @@ pub mod geonames;
 
 use std::sync::Arc;
 
-use aide::transform::TransformOpenApi;
 use aide::{axum::ApiRouter, openapi::OpenApi};
 use axum::Extension;
 use clap::{command, Parser};
@@ -30,18 +29,55 @@ struct Args {
         default_value = ",de,ger",
         value_delimiter = ','
     )]
-    languages: Option<Vec<String>>,
+    languages: Vec<String>,
+    #[clap(long, default_value = "0.0.0.0")]
+    host: String,
+    #[clap(long, default_value = "8000")]
+    port: u16,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     let args = Args::parse();
 
+    let mut paths = Vec::new();
+    for path in args.paths.iter() {
+        if std::fs::metadata(path)?.is_dir() {
+            for entry in std::fs::read_dir(path)? {
+                let entry = entry?;
+                if entry.file_type()?.is_file() {
+                    paths.push(entry.path().to_string_lossy().to_string());
+                }
+            }
+        } else {
+            paths.push(path.to_string());
+        }
+    }
+
+    let alternate = if let Some(alternate) = args.alternate.as_ref() {
+        let mut alternate_paths = Vec::new();
+        for path in alternate.iter() {
+            if std::fs::metadata(path)?.is_dir() {
+                for entry in std::fs::read_dir(path)? {
+                    let entry = entry?;
+                    if entry.file_type()?.is_file() {
+                        alternate_paths.push(entry.path().to_string_lossy().to_string());
+                    }
+                }
+            } else {
+                alternate_paths.push(path.to_string());
+            }
+        }
+        Some(alternate_paths)
+    } else {
+        None
+    };
+
     let app_state = AppState {
         searcher: Arc::new(GeoNamesSearcher::build(
-            args.paths,
-            args.alternate,
-            args.languages,
+            paths,
+            alternate,
+            Some(args.languages),
         )?),
     };
 
@@ -50,15 +86,11 @@ async fn main() -> Result<(), anyhow::Error> {
     let app = ApiRouter::new()
         .nest_api_service("/geonames", geonames_routes(app_state.clone()))
         .nest_api_service("/docs", docs_routes(app_state.clone()))
-        .finish_api_with(&mut api, api_docs)
+        .finish_api(&mut api)
         .layer(Extension(api))
         .with_state(app_state);
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8000").await?;
+    let listener = tokio::net::TcpListener::bind(format!("{}:{}", args.host, args.port)).await?;
     axum::serve(listener, app).await?;
     Ok(())
-}
-
-fn api_docs(api: TransformOpenApi) -> TransformOpenApi {
-    api.title("GeoNames FST API")
 }
