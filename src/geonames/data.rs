@@ -1,8 +1,8 @@
 use schemars::JsonSchema;
 use serde::Serialize;
 
-#[derive(Debug, Serialize)]
-pub struct GeoNamesData {
+#[derive(Debug, Clone, PartialEq, Serialize, JsonSchema)]
+pub struct GeoNamesEntry {
     pub id: u64,
     pub name: String,
     pub latitude: f32,
@@ -15,27 +15,17 @@ pub struct GeoNamesData {
 #[derive(Debug, Serialize, PartialEq, JsonSchema)]
 pub struct GeoNamesSearchResult {
     key: MatchKey,
-    name: String,
-    latitude: f32,
-    longitude: f32,
-    feature_class: String,
-    feature_code: String,
-    country_code: String,
+    entry: GeoNamesEntry,
 }
 
 impl GeoNamesSearchResult {
-    pub fn new(key: &str, mtch: &MatchType, gnd: &GeoNamesData) -> Self {
+    pub fn new(key: &str, typ: &MatchType, gn: &GeoNamesEntry) -> Self {
         GeoNamesSearchResult {
-            name: gnd.name.clone(),
-            latitude: gnd.latitude,
-            longitude: gnd.longitude,
-            feature_class: gnd.feature_class.clone(),
-            feature_code: gnd.feature_code.clone(),
-            country_code: gnd.country_code.clone(),
             key: MatchKey {
                 name: key.to_string(),
-                typ: mtch.clone(),
+                typ: typ.clone(),
             },
+            entry: gn.clone(),
         }
     }
 }
@@ -54,32 +44,22 @@ impl PartialOrd for GeoNamesSearchResult {
     }
 }
 
-#[derive(Debug, Serialize, PartialEq, JsonSchema)]
+#[derive(Debug, PartialEq, Serialize, JsonSchema)]
 pub struct GeoNamesSearchResultWithDist {
     key: MatchKey,
-    name: String,
-    latitude: f32,
-    longitude: f32,
-    feature_class: String,
-    feature_code: String,
-    country_code: String,
+    entry: GeoNamesEntry,
     distance: usize,
 }
 
 impl GeoNamesSearchResultWithDist {
-    pub fn new(key: &str, mtch: &MatchType, gnd: &GeoNamesData, dist: usize) -> Self {
+    pub fn new(key: &str, typ: &MatchType, gn: &GeoNamesEntry, dist: usize) -> Self {
         GeoNamesSearchResultWithDist {
-            name: gnd.name.clone(),
-            latitude: gnd.latitude,
-            longitude: gnd.longitude,
-            feature_class: gnd.feature_class.clone(),
-            feature_code: gnd.feature_code.clone(),
-            country_code: gnd.country_code.clone(),
-            distance: dist,
             key: MatchKey {
                 name: key.to_string(),
-                typ: mtch.clone(),
+                typ: typ.clone(),
             },
+            entry: gn.clone(),
+            distance: dist,
         }
     }
 }
@@ -89,7 +69,7 @@ impl Eq for GeoNamesSearchResultWithDist {}
 impl Ord for GeoNamesSearchResultWithDist {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         let cmp = self.distance.cmp(&other.distance);
-        if let std::cmp::Ordering::Equal = cmp {
+        if cmp.is_eq() {
             self.key.cmp(&other.key)
         } else {
             cmp
@@ -164,10 +144,11 @@ impl MatchType {
 
 impl Ord for MatchType {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        if self.id() == other.id() {
-            self.ord().cmp(&other.ord())
-        } else {
+        let cmp = self.ord().cmp(&other.ord());
+        if cmp.is_eq() {
             self.id().cmp(&other.id())
+        } else {
+            cmp
         }
     }
 }

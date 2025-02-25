@@ -4,12 +4,12 @@ use std::{f32, io};
 
 use anyhow::anyhow;
 
-use super::data::{GeoNamesData, MatchType};
+use super::data::{GeoNamesEntry, MatchType};
 
 pub(crate) fn parse_geonames_file(
     path: &str,
-    search_terms: &mut Vec<(String, MatchType)>,
-    data_store: &mut HashMap<u64, GeoNamesData>,
+    query_pairs: &mut Vec<(String, MatchType)>,
+    geonames: &mut HashMap<u64, GeoNamesEntry>,
 ) -> Result<(), anyhow::Error> {
     let mut rdr = csv::ReaderBuilder::new()
         .delimiter(b'\t')
@@ -30,14 +30,14 @@ pub(crate) fn parse_geonames_file(
 
         if name_ascii != name {
             // set_of_seen_names.insert(name_ascii.clone());
-            search_terms.push((name_ascii, MatchType::AsciiName { id }));
+            query_pairs.push((name_ascii, MatchType::AsciiName { id }));
         }
         // set_of_seen_names.insert(name.clone());
-        search_terms.push((name.clone(), MatchType::Name { id }));
+        query_pairs.push((name.clone(), MatchType::Name { id }));
 
-        data_store.insert(
+        geonames.insert(
             id,
-            GeoNamesData {
+            GeoNamesEntry {
                 id,
                 name,
                 latitude,
@@ -53,7 +53,8 @@ pub(crate) fn parse_geonames_file(
 
 pub(crate) fn parse_alternate_names_file(
     path: &str,
-    search_terms: &mut Vec<(String, MatchType)>,
+    query_pairs: &mut Vec<(String, MatchType)>,
+    geonames: &HashMap<u64, GeoNamesEntry>,
     include_languages: Option<&Vec<String>>,
 ) -> Result<(), anyhow::Error> {
     let mut rdr = csv::ReaderBuilder::new()
@@ -74,6 +75,11 @@ pub(crate) fn parse_alternate_names_file(
         }
 
         let id: u64 = record.get(1).ok_or(anyhow!("no geoname_id"))?.parse()?;
+
+        if !geonames.contains_key(&id) {
+            continue;
+        }
+
         let lang = lang.to_string();
         let name: String = record.get(3).ok_or(anyhow!("no name"))?.to_string();
 
@@ -86,19 +92,19 @@ pub(crate) fn parse_alternate_names_file(
 
         match (preferred, short, colloquial, historic) {
             (true, false, false, false) => {
-                search_terms.push((name, MatchType::PreferredName { id, lang }));
+                query_pairs.push((name, MatchType::PreferredName { id, lang }));
             }
             (false, true, false, false) => {
-                search_terms.push((name, MatchType::ShortName { id, lang }));
+                query_pairs.push((name, MatchType::ShortName { id, lang }));
             }
             (false, false, true, false) => {
-                search_terms.push((name, MatchType::Colloquial { id, lang }));
+                query_pairs.push((name, MatchType::Colloquial { id, lang }));
             }
             (false, false, false, true) => {
-                search_terms.push((name, MatchType::Historic { id, lang, from, to }));
+                query_pairs.push((name, MatchType::Historic { id, lang, from, to }));
             }
             _ => {
-                search_terms.push((name, MatchType::Alternate { id, lang }));
+                query_pairs.push((name, MatchType::Alternate { id, lang }));
             }
         }
     }
