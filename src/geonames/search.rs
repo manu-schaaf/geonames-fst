@@ -13,8 +13,14 @@ use regex_automata::Input;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
+fn _schemars_default_query() -> String {
+    "Frankfurt".to_string()
+}
 #[derive(Deserialize, JsonSchema)]
 pub(crate) struct Request {
+    /// The search query (name of the GeoNames entity).
+    #[validate(length(min = 1))]
+    #[schemars(default = "_schemars_default_query")]
     pub query: String,
 }
 
@@ -33,7 +39,6 @@ pub(crate) async fn find(
 
     (StatusCode::OK, Json(Response::Results(results)))
 }
-
 
 #[derive(Debug)]
 struct RegexSearchAutomaton {
@@ -70,18 +75,29 @@ impl fst::Automaton for RegexSearchAutomaton {
     }
 }
 
+fn _schemars_default_regex() -> String {
+    "^Frankfurt.*".to_string()
+}
+#[derive(Deserialize, JsonSchema)]
+pub(crate) struct RequestRegex {
+    /// The regular expression to match against the GeoNames entities.
+    #[validate(length(min = 1))]
+    #[schemars(default = "_schemars_default_regex")]
+    pub regex: String,
+}
+
 pub(crate) async fn regex(
     State(state): State<AppState>,
-    Json(request): Json<Request>,
+    Json(request): Json<RequestRegex>,
 ) -> impl IntoApiResponse {
-    if request.query.is_empty() {
+    if request.regex.is_empty() {
         return (
             StatusCode::BAD_REQUEST,
             Json(Response::Error("Empty query".to_string())),
         );
     }
 
-    let dfa = RegexSearchAutomaton::from_str(&request.query);
+    let dfa = RegexSearchAutomaton::from_str(&request.regex);
     if let Ok(query) = dfa {
         let results = state.searcher.search(query);
 
