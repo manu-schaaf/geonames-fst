@@ -1,4 +1,5 @@
-use crate::{AppState, Response};
+use crate::geonames::Response;
+use crate::AppState;
 
 use std::str::FromStr;
 
@@ -16,6 +17,23 @@ use serde::Deserialize;
 pub(crate) struct Request {
     pub query: String,
 }
+
+pub(crate) async fn find(
+    State(state): State<AppState>,
+    Json(request): Json<Request>,
+) -> impl IntoApiResponse {
+    if request.query.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(Response::Error("Empty query".to_string())),
+        );
+    }
+
+    let results = state.searcher.get(&request.query);
+
+    (StatusCode::OK, Json(Response::Results(results)))
+}
+
 
 #[derive(Debug)]
 struct RegexSearchAutomaton {
@@ -76,20 +94,4 @@ pub(crate) async fn regex(
             Json(Response::Error(format!("RegexError: {:?}", e).to_string())),
         )
     }
-}
-
-pub(crate) async fn get_geoname(
-    State(state): State<AppState>,
-    Json(request): Json<Request>,
-) -> impl IntoApiResponse {
-    if request.query.is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(Response::Error("Empty query".to_string())),
-        );
-    }
-
-    let results = state.searcher.get(&request.query);
-
-    (StatusCode::OK, Json(Response::Results(results)))
 }

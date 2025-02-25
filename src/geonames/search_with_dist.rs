@@ -1,14 +1,14 @@
-use crate::{AppState, Response};
-
 use aide::axum::IntoApiResponse;
 use axum::extract::State;
 use axum::{http::StatusCode, Json};
 use fst::automaton::Levenshtein;
 use fst::automaton::{Str, Subsequence};
 use fst::Automaton;
+use schemars::JsonSchema;
 use serde::Deserialize;
 
-use schemars::JsonSchema;
+use super::Response;
+use crate::AppState;
 
 #[derive(Deserialize, JsonSchema)]
 pub(crate) struct RequestWithDist {
@@ -29,10 +29,9 @@ pub(crate) async fn starts_with(
 
     let query = Str::new(&request.query).starts_with();
 
-    let results =
-        state
-            .searcher
-            .search_with_dist(query, &request.query, &request.max_dist);
+    let results = state
+        .searcher
+        .search_with_dist(query, &request.query, &request.max_dist);
 
     (StatusCode::OK, Json(Response::ResultsWithDist(results)))
 }
@@ -50,10 +49,9 @@ pub(crate) async fn fuzzy(
 
     let query = Subsequence::new(&request.query);
 
-    let results =
-        state
-            .searcher
-            .search_with_dist(query, &request.query, &request.max_dist);
+    let results = state
+        .searcher
+        .search_with_dist(query, &request.query, &request.max_dist);
 
     (StatusCode::OK, Json(Response::ResultsWithDist(results)))
 }
@@ -85,16 +83,15 @@ pub(crate) async fn levenshtein(
     };
 
     if let Ok(query) = query {
-        let results =
-            state
-                .searcher
-                .search_with_dist(query, &request.query, &request.max_dist);
+        let results = state
+            .searcher
+            .search_with_dist(query, &request.query, &request.max_dist);
         (StatusCode::OK, Json(Response::ResultsWithDist(results)))
     } else {
         let error = query.unwrap_err();
 
         (
-            StatusCode::BAD_REQUEST,
+            StatusCode::NOT_ACCEPTABLE,
             Json(Response::Error(
                 format!("LevenshteinError: {:?}", error).to_string(),
             )),
