@@ -86,30 +86,37 @@ impl PartialOrd for GeoNamesSearchResultWithDist {
 #[derive(Debug, Clone, Serialize, PartialEq, Eq, JsonSchema)]
 #[serde(tag = "type")]
 pub enum MatchType {
+    /// GeoNames main name (usually English)
     Name {
         id: u64,
     },
+    /// ASCII version of the main name
     AsciiName {
         id: u64,
     },
+    /// Alternate: preferred name in a specific language
     PreferredName {
         id: u64,
         lang: String,
     },
+    /// Alternate: short name in a specific language
     ShortName {
         id: u64,
         lang: String,
     },
+    /// Alternate: colloquial name or slang in a specific language
     Colloquial {
         id: u64,
         lang: String,
     },
+    /// Alternate: historic name in a specific language
     Historic {
         id: u64,
         lang: String,
         from: String,
         to: String,
     },
+    /// Alternate: other name in a specific language
     Alternate {
         id: u64,
         lang: String,
