@@ -26,7 +26,7 @@ struct Args {
         short,
         long,
         help = "Languages to consider for the alternatives.",
-        default_value = ",de,ger",
+        default_value = ",de,deu,ger",
         value_delimiter = ','
     )]
     languages: Vec<String>,
