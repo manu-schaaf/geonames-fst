@@ -1,6 +1,6 @@
 [package]
 name = "geonames-fst"
-version = "0.1.0"
+version = "0.1.0-hotfix"
 edition = "2021"
 
 [dependencies]
