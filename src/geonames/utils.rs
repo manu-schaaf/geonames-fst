@@ -27,6 +27,16 @@ pub(crate) fn parse_geonames_file(
         let feature_class: String = record.get(6).unwrap_or("<missing>").to_string();
         let feature_code: String = record.get(7).unwrap_or("<missing>").to_string();
         let country_code: String = record.get(8).unwrap_or("<missing>").to_string();
+        let administrative_divisions: (String, String, String, String) = (
+            record.get(10).unwrap_or("").to_string(),
+            record.get(11).unwrap_or("").to_string(),
+            record.get(12).unwrap_or("").to_string(),
+            record.get(13).unwrap_or("").to_string(),
+        );
+        let elevation: Option<i16> = record
+            .get(15)
+            .map(|i| i.parse().map_or(None, |i| Some(i)))
+            .flatten();
 
         if name_ascii != name {
             // set_of_seen_names.insert(name_ascii.clone());
@@ -45,6 +55,8 @@ pub(crate) fn parse_geonames_file(
                 feature_class,
                 feature_code,
                 country_code,
+                administrative_divisions,
+                elevation,
             },
         );
     }
