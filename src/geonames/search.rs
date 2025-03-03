@@ -1,6 +1,3 @@
-use crate::geonames::Response;
-use crate::AppState;
-
 use std::str::FromStr;
 
 use aide::axum::IntoApiResponse;
@@ -13,20 +10,34 @@ use regex_automata::Input;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
+use crate::geonames::{filter_results, FilterResults, Response, _schemars_default_filter};
+use crate::AppState;
+
+use super::data::GeoNamesSearchResult;
+
 fn _schemars_default_query() -> String {
-    "Frankfurt".to_string()
+    "Feldberg".to_string()
+}
+fn _schemars_default_filter_class_t() -> Option<FilterResults> {
+    Some(FilterResults {
+        feature_class: Some("T".to_string()),
+        feature_code: None,
+        country_code: Some("DE".to_string()),
+    })
 }
 #[derive(Deserialize, JsonSchema)]
-pub(crate) struct Request {
+pub(crate) struct RequestFind {
     /// The search query (name of the GeoNames entity).
     #[validate(length(min = 1))]
     #[schemars(default = "_schemars_default_query")]
     pub query: String,
+    #[schemars(default = "_schemars_default_filter_class_t")]
+    pub filter: Option<FilterResults>,
 }
 
 pub(crate) async fn find(
     State(state): State<AppState>,
-    Json(request): Json<Request>,
+    Json(request): Json<RequestFind>,
 ) -> impl IntoApiResponse {
     if request.query.is_empty() {
         return (
@@ -35,7 +46,8 @@ pub(crate) async fn find(
         );
     }
 
-    let results = state.searcher.get(&request.query);
+    let results: Vec<GeoNamesSearchResult> =
+        filter_results(state.searcher.get(&request.query), &request.filter);
 
     (StatusCode::OK, Json(Response::Results(results)))
 }
@@ -84,6 +96,11 @@ pub(crate) struct RequestRegex {
     #[validate(length(min = 1))]
     #[schemars(default = "_schemars_default_regex")]
     pub regex: String,
+    #[schemars(
+        default = "_schemars_default_filter",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub filter: Option<FilterResults>,
 }
 
 pub(crate) async fn regex(
@@ -99,7 +116,7 @@ pub(crate) async fn regex(
 
     let dfa = RegexSearchAutomaton::from_str(&request.regex);
     if let Ok(query) = dfa {
-        let results = state.searcher.search(query);
+        let results = filter_results(state.searcher.search(query), &request.filter);
 
         (StatusCode::OK, Json(Response::Results(results)))
     } else {

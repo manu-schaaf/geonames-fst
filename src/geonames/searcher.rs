@@ -3,8 +3,10 @@ use std::collections::HashMap;
 use fst::{Automaton, IntoStreamer, Map, MapBuilder, Streamer};
 use levenshtein::levenshtein as levenshtein_dist;
 
-use super::data::{GeoNamesEntry, GeoNamesSearchResult, GeoNamesSearchResultWithDist, MatchType};
-use super::utils::{parse_alternate_names_file, parse_geonames_file};
+use crate::geonames::data::{
+    GeoNamesEntry, GeoNamesSearchResult, GeoNamesSearchResultWithDist, MatchType,
+};
+use crate::geonames::utils::{parse_alternate_names_file, parse_geonames_file};
 
 pub struct GeoNamesSearcher {
     pub map: Map<Vec<u8>>,

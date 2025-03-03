@@ -38,6 +38,42 @@ pub(crate) enum Response {
     Error(String),
 }
 
+fn _default_string_none() -> Option<String> {
+    None
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub(crate) struct FilterResults {
+    #[schemars(default = "_default_string_none")]
+    pub feature_class: Option<String>,
+    #[schemars(default = "_default_string_none")]
+    pub feature_code: Option<String>,
+    #[schemars(default = "_default_string_none")]
+    pub country_code: Option<String>,
+}
+
+pub(crate) fn _schemars_default_filter() -> Option<FilterResults> {
+    None
+}
+
+pub(crate) fn filter_results<T>(mut results: Vec<T>, filter: &Option<FilterResults>) -> Vec<T>
+where
+    T: data::Entry,
+{
+    if let Some(filter) = filter {
+        if let Some(feature_class) = &filter.feature_class {
+            results.retain(|r| r.entry().feature_class.eq(feature_class));
+        }
+        if let Some(feature_code) = &filter.feature_code {
+            results.retain(|r| r.entry().feature_code.eq(feature_code));
+        }
+        if let Some(country_code) = &filter.country_code {
+            results.retain(|r| r.entry().country_code.eq(country_code));
+        }
+    }
+    results
+}
+
 #[derive(serde::Serialize, schemars::JsonSchema)]
 struct _DocResults {
     results: Vec<data::GeoNamesSearchResult>,

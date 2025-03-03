@@ -11,13 +11,18 @@ pub struct GeoNamesEntry {
     pub feature_code: String,
     pub country_code: String,
     pub administrative_divisions: (String, String, String, String),
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub elevation: Option<i16>,
+}
+
+pub trait Entry {
+    fn entry(&self) -> &GeoNamesEntry;
 }
 
 #[derive(Debug, Serialize, PartialEq, JsonSchema)]
 pub struct GeoNamesSearchResult {
-    key: MatchKey,
-    entry: GeoNamesEntry,
+    pub key: MatchKey,
+    pub entry: GeoNamesEntry,
 }
 
 impl GeoNamesSearchResult {
@@ -29,6 +34,12 @@ impl GeoNamesSearchResult {
             },
             entry: gn.clone(),
         }
+    }
+}
+
+impl Entry for GeoNamesSearchResult {
+    fn entry(&self) -> &GeoNamesEntry {
+        &self.entry
     }
 }
 
@@ -63,6 +74,12 @@ impl GeoNamesSearchResultWithDist {
             entry: gn.clone(),
             distance: dist,
         }
+    }
+}
+
+impl Entry for GeoNamesSearchResultWithDist {
+    fn entry(&self) -> &GeoNamesEntry {
+        &self.entry
     }
 }
 
@@ -153,7 +170,7 @@ impl PartialOrd for MatchType {
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq, JsonSchema)]
-struct MatchKey {
+pub struct MatchKey {
     name: String,
     #[serde(flatten)]
     typ: MatchType,

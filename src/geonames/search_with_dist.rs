@@ -7,7 +7,7 @@ use fst::Automaton;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
-use super::Response;
+use crate::geonames::{filter_results, FilterResults, Response, _schemars_default_filter};
 use crate::AppState;
 
 fn _schemars_default_query() -> String {
@@ -27,6 +27,8 @@ pub(crate) struct RequestStartsWith {
     /// Filter results by Levenshtein distance. Omit or set to `null` to disable filtering.
     #[schemars(default = "_schemars_default_max_dist")]
     pub max_dist: Option<u32>,
+    #[schemars(default = "_schemars_default_filter")]
+    pub filter: Option<FilterResults>,
 }
 
 pub(crate) async fn starts_with(
@@ -45,6 +47,7 @@ pub(crate) async fn starts_with(
     let results = state
         .searcher
         .search_with_dist(query, &request.query, &request.max_dist);
+    let results = filter_results(results, &request.filter);
 
     (StatusCode::OK, Json(Response::ResultsWithDist(results)))
 }
@@ -62,6 +65,8 @@ pub(crate) struct RequestFuzzy {
     /// Filter results by Levenshtein distance. Omit or set to `null` to disable filtering.
     #[schemars(default = "_schemars_default_max_dist")]
     pub max_dist: Option<u32>,
+    #[schemars(default = "_schemars_default_filter")]
+    pub filter: Option<FilterResults>,
 }
 
 pub(crate) async fn fuzzy(
@@ -80,6 +85,7 @@ pub(crate) async fn fuzzy(
     let results = state
         .searcher
         .search_with_dist(query, &request.query, &request.max_dist);
+    let results = filter_results(results, &request.filter);
 
     (StatusCode::OK, Json(Response::ResultsWithDist(results)))
 }
@@ -108,6 +114,8 @@ pub(crate) struct RequestLevenshtein {
     /// Limit the number of states to search. Defaults to 10000. Long queries or high `max_dist` values may require increasing this limit.
     #[schemars(default = "_schemars_default_state_limit")]
     state_limit: Option<usize>,
+    #[schemars(default = "_schemars_default_filter")]
+    pub filter: Option<FilterResults>,
 }
 
 pub(crate) async fn levenshtein(
@@ -133,6 +141,8 @@ pub(crate) async fn levenshtein(
         let results = state
             .searcher
             .search_with_dist(query, &request.query, &request.max_dist);
+        let results = filter_results(results, &request.filter);
+
         (StatusCode::OK, Json(Response::ResultsWithDist(results)))
     } else {
         let error = query.unwrap_err();
