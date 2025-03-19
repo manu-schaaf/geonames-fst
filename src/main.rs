@@ -1,14 +1,16 @@
 pub mod docs;
 pub mod geonames;
+pub mod routes;
 
 use std::sync::Arc;
 
 use aide::{axum::ApiRouter, openapi::OpenApi};
 use axum::Extension;
 use clap::{command, Parser};
+use routes::geonames_routes;
 
 use crate::docs::docs_routes;
-use crate::geonames::{geonames_routes, searcher::GeoNamesSearcher};
+use crate::geonames::searcher::GeoNamesSearcher;
 
 #[derive(Clone)]
 struct AppState {
