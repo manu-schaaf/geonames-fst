@@ -4,7 +4,13 @@ version = "0.2.0"
 edition = "2021"
 
 [dependencies]
-aide = { version = "0.14.1", features = ["axum", "axum-json", "axum-tokio", "macros", "swagger"] }
+aide = { version = "0.14.1", features = [
+    "axum",
+    "axum-json",
+    "axum-tokio",
+    "macros",
+    "swagger",
+] }
 anyhow = "1.0.96"
 axum = { version = "0.8.1", features = ["macros"] }
 clap = { version = "4.5.31", features = ["derive"] }
