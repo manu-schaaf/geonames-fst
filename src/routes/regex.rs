@@ -10,6 +10,7 @@ use serde::Deserialize;
 use super::docs::{DocError, DocResults};
 use super::regex_automaton::RegexSearchAutomaton;
 use super::{filter_results, FilterResults, Response, _schemars_default_filter};
+use crate::geonames::data::GeoNamesSearchResult;
 use crate::AppState;
 
 #[derive(Deserialize, JsonSchema)]
@@ -63,6 +64,6 @@ pub(crate) async fn regex(
 
 pub(crate) fn regex_docs(op: TransformOperation) -> TransformOperation {
     op.description("Find all GeoNames entries with the specified regex.")
-        .response::<200, Json<DocResults>>()
+        .response::<200, Json<DocResults<GeoNamesSearchResult>>>()
         .response_with::<400, Json<DocError>, _>(|t| t.description("The query was empty."))
 }

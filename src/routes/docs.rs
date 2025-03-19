@@ -6,7 +6,6 @@ use aide::{
 };
 use axum::{response::IntoResponse, Extension, Json};
 
-use crate::geonames::data;
 use crate::AppState;
 
 pub(crate) fn docs_routes(state: AppState) -> ApiRouter {
@@ -37,13 +36,8 @@ async fn serve_docs(Extension(api): Extension<OpenApi>) -> impl IntoApiResponse 
 }
 
 #[derive(serde::Serialize, schemars::JsonSchema)]
-pub(crate) struct DocResults {
-    results: Vec<data::GeoNamesSearchResult>,
-}
-
-#[derive(serde::Serialize, schemars::JsonSchema)]
-pub(crate) struct DocResultsWithDist {
-    results: Vec<data::GeoNamesSearchResultWithDist>,
+pub(crate) struct DocResults<T> {
+    results: Vec<T>,
 }
 
 #[derive(serde::Serialize, schemars::JsonSchema)]

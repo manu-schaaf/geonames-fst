@@ -6,8 +6,9 @@ use fst::automaton::Levenshtein;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
-use super::docs::{DocError, DocResultsWithDist};
+use super::docs::{DocError, DocResults};
 use super::{filter_results, FilterResults, Response, _schemars_default_filter};
+use crate::geonames::data::GeoNamesSearchResultWithDist;
 use crate::AppState;
 
 fn _schemars_default_max_dist() -> Option<u32> {
@@ -83,7 +84,7 @@ pub(crate) async fn levenshtein(
 
 pub(crate) fn levenshtein_docs(op: TransformOperation) -> TransformOperation {
     op.description("Find all GeoNames entries that match the Levenshtein search query with a maximum edit distance.<br><strong>NOTE:</strong> The Levenshtein search may consume a lot of memory and is thus capped to a maximum number of states of 10000 by default. If your search query exceeds this limit, you will recieve an error (406 Not Acceptable). The number of required states depends on the <code>max_dist</code>.<br><br><em>Use with caution!</em>")
-        .response::<200, Json<DocResultsWithDist>>()
+        .response::<200, Json<DocResults<GeoNamesSearchResultWithDist>>>()
         .response_with::<400, Json<DocError>, _>(|t|t.description("The query was empty."))
         .response_with::<406, Json<DocError>, _>(|t| t.description("The search query exceeded the maximum number of states"))
 }

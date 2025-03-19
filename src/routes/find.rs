@@ -56,6 +56,6 @@ pub(crate) async fn find(
 
 pub(crate) fn find_docs(op: TransformOperation) -> TransformOperation {
     op.description("Find all GeoNames entries with the specified name.")
-        .response::<200, Json<DocResults>>()
+        .response::<200, Json<DocResults<GeoNamesSearchResult>>>()
         .response_with::<400, Json<DocError>, _>(|t| t.description("The query was empty."))
 }

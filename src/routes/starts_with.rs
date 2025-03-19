@@ -7,8 +7,9 @@ use fst::Automaton;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
-use super::docs::{DocError, DocResultsWithDist};
+use super::docs::{DocError, DocResults};
 use super::{filter_results, FilterResults, Response, _schemars_default_filter};
+use crate::geonames::data::GeoNamesSearchResultWithDist;
 use crate::AppState;
 
 fn _schemars_default_max_dist() -> Option<u32> {
@@ -60,6 +61,6 @@ pub(crate) async fn starts_with(
 
 pub(crate) fn starts_with_docs(op: TransformOperation) -> TransformOperation {
     op.description("Find all GeoNames entries that start with the specified string.")
-        .response::<200, Json<DocResultsWithDist>>()
+        .response::<200, Json<DocResults<GeoNamesSearchResultWithDist>>>()
         .response_with::<400, Json<DocError>, _>(|t| t.description("The query was empty."))
 }

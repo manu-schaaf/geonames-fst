@@ -6,8 +6,9 @@ use fst::automaton::Subsequence;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
-use super::docs::{DocError, DocResultsWithDist};
+use super::docs::{DocError, DocResults};
 use super::{filter_results, FilterResults, Response, _schemars_default_filter};
+use crate::geonames::data::GeoNamesSearchResultWithDist;
 use crate::AppState;
 
 fn _schemars_default_max_dist() -> Option<u32> {
@@ -62,6 +63,6 @@ pub(crate) fn fuzzy_docs(op: TransformOperation) -> TransformOperation {
     op.description(
         "Find all GeoNames entries that match the fuzzy search query with a maximum edit distance.",
     )
-    .response::<200, Json<DocResultsWithDist>>()
+    .response::<200, Json<DocResults<GeoNamesSearchResultWithDist>>>()
     .response_with::<400, Json<DocError>, _>(|t| t.description("The query was empty."))
 }
