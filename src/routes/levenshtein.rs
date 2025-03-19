@@ -2,13 +2,14 @@ use aide::axum::IntoApiResponse;
 use aide::transform::TransformOperation;
 use axum::extract::State;
 use axum::{http::StatusCode, Json};
-use fst::automaton::Levenshtein;
+use fst::automaton::{Levenshtein, LevenshteinError};
 use schemars::JsonSchema;
 use serde::Deserialize;
 
 use super::docs::{DocError, DocResults};
 use super::{filter_results, FilterResults, Response, _schemars_default_filter};
 use crate::geonames::data::GeoNamesSearchResultWithDist;
+use crate::geonames::searcher::GeoNamesSearcher;
 use crate::AppState;
 
 fn _schemars_default_max_dist() -> Option<u32> {
@@ -24,7 +25,7 @@ pub(crate) struct RequestOptsLevenshtein {
     pub max_dist: Option<u32>,
     /// Limit the number of states to search. Defaults to 10000. Long queries or high `max_dist` values may require increasing this limit.
     #[schemars(default = "_schemars_default_state_limit")]
-    state_limit: Option<usize>,
+    pub state_limit: Option<usize>,
     #[schemars(default = "_schemars_default_filter")]
     pub filter: Option<FilterResults>,
 }
@@ -54,31 +55,42 @@ pub(crate) async fn levenshtein(
         );
     }
 
-    let distance = request.opts.max_dist.unwrap_or(1);
-
-    let query = if let Some(state_limit) = request.opts.state_limit {
-        Levenshtein::new_with_limit(&request.query, distance, state_limit)
-    } else {
-        Levenshtein::new(&request.query, distance)
-    };
-
-    if let Ok(query) = query {
-        let results =
-            state
-                .searcher
-                .search_with_dist(query, &request.query, &request.opts.max_dist);
-        let results = filter_results(results, &request.opts.filter);
-
-        (StatusCode::OK, Json(Response::Results(results)))
-    } else {
-        let error = query.unwrap_err();
-
-        (
+    match levenshtein_inner(
+        &state.searcher,
+        &request.query,
+        &request.opts.state_limit,
+        &request.opts.max_dist,
+        &request.opts.filter,
+    ) {
+        Ok(results) => (StatusCode::OK, Json(Response::Results(results))),
+        Err(error) => (
             StatusCode::NOT_ACCEPTABLE,
             Json(Response::Error(
                 format!("LevenshteinError: {:?}", error).to_string(),
             )),
-        )
+        ),
+    }
+}
+
+pub(crate) fn levenshtein_inner(
+    searcher: &GeoNamesSearcher,
+    query: &str,
+    state_limit: &Option<usize>,
+    max_dist: &Option<u32>,
+    filter: &Option<FilterResults>,
+) -> Result<Vec<GeoNamesSearchResultWithDist>, LevenshteinError> {
+    let distance = max_dist.unwrap_or(1);
+    let levenshtein_query = if let Some(state_limit) = state_limit {
+        Levenshtein::new_with_limit(query, distance, *state_limit)
+    } else {
+        Levenshtein::new(query, distance)
+    };
+    match levenshtein_query {
+        Ok(levenshtein_query) => Ok(filter_results(
+            searcher.search_with_dist(levenshtein_query, query, max_dist),
+            filter,
+        )),
+        Err(error) => Err(error),
     }
 }
 
