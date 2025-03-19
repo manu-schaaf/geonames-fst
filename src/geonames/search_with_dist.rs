@@ -10,25 +10,30 @@ use serde::Deserialize;
 use crate::geonames::{filter_results, FilterResults, Response, _schemars_default_filter};
 use crate::AppState;
 
-fn _schemars_default_query() -> String {
-    "Frankfurt".to_string()
-}
-
 fn _schemars_default_max_dist() -> Option<u32> {
     None
 }
+#[derive(Deserialize, JsonSchema)]
+pub(crate) struct RequestOptsStartsWith {
+    /// Filter results by Levenshtein distance. Omit or set to `null` to disable filtering.
+    #[schemars(default = "_schemars_default_max_dist")]
+    pub max_dist: Option<u32>,
+    #[schemars(default = "_schemars_default_filter")]
+    pub filter: Option<FilterResults>,
+}
 
+fn _schemars_default_query() -> String {
+    "Frankfurt".to_string()
+}
 #[derive(Deserialize, JsonSchema)]
 pub(crate) struct RequestStartsWith {
     /// The search query (name of the GeoNames entity).
     #[validate(length(min = 1))]
     #[schemars(default = "_schemars_default_query")]
     pub query: String,
-    /// Filter results by Levenshtein distance. Omit or set to `null` to disable filtering.
-    #[schemars(default = "_schemars_default_max_dist")]
-    pub max_dist: Option<u32>,
-    #[schemars(default = "_schemars_default_filter")]
-    pub filter: Option<FilterResults>,
+
+    #[serde(flatten)]
+    pub opts: RequestOptsStartsWith,
 }
 
 pub(crate) async fn starts_with(
@@ -46,27 +51,33 @@ pub(crate) async fn starts_with(
 
     let results = state
         .searcher
-        .search_with_dist(query, &request.query, &request.max_dist);
-    let results = filter_results(results, &request.filter);
+        .search_with_dist(query, &request.query, &request.opts.max_dist);
+    let results = filter_results(results, &request.opts.filter);
 
     (StatusCode::OK, Json(Response::ResultsWithDist(results)))
+}
+
+#[derive(Deserialize, JsonSchema)]
+pub(crate) struct RequestOptsFuzzy {
+    /// Filter results by Levenshtein distance. Omit or set to `null` to disable filtering.
+    #[schemars(default = "_schemars_default_max_dist")]
+    pub max_dist: Option<u32>,
+    #[schemars(default = "_schemars_default_filter")]
+    pub filter: Option<FilterResults>,
 }
 
 fn _schemars_default_fuzzy_query() -> String {
     "FrnkfraMain".to_string()
 }
-
 #[derive(Deserialize, JsonSchema)]
 pub(crate) struct RequestFuzzy {
     /// The search query (name of the GeoNames entity).
     #[validate(length(min = 1))]
     #[schemars(default = "_schemars_default_fuzzy_query")]
     pub query: String,
-    /// Filter results by Levenshtein distance. Omit or set to `null` to disable filtering.
-    #[schemars(default = "_schemars_default_max_dist")]
-    pub max_dist: Option<u32>,
-    #[schemars(default = "_schemars_default_filter")]
-    pub filter: Option<FilterResults>,
+
+    #[serde(flatten)]
+    pub opts: RequestOptsFuzzy,
 }
 
 pub(crate) async fn fuzzy(
@@ -84,30 +95,20 @@ pub(crate) async fn fuzzy(
 
     let results = state
         .searcher
-        .search_with_dist(query, &request.query, &request.max_dist);
-    let results = filter_results(results, &request.filter);
+        .search_with_dist(query, &request.query, &request.opts.max_dist);
+    let results = filter_results(results, &request.opts.filter);
 
     (StatusCode::OK, Json(Response::ResultsWithDist(results)))
-}
-
-fn _schemars_default_levenshtein_query() -> String {
-    "Frxnkfxrt".to_string()
 }
 
 fn _schemars_default_max_dist_one() -> Option<u32> {
     Some(2)
 }
-
 fn _schemars_default_state_limit() -> Option<usize> {
     Some(10000)
 }
-
 #[derive(Deserialize, JsonSchema)]
-pub(crate) struct RequestLevenshtein {
-    /// The search query (name of the GeoNames entity).
-    #[validate(length(min = 1))]
-    #[schemars(default = "_schemars_default_levenshtein_query")]
-    pub query: String,
+pub(crate) struct RequestOptsLevenshtein {
     /// Maximum Levenshtein distance. Defaults to 1.
     #[schemars(default = "_schemars_default_max_dist_one")]
     pub max_dist: Option<u32>,
@@ -116,6 +117,20 @@ pub(crate) struct RequestLevenshtein {
     state_limit: Option<usize>,
     #[schemars(default = "_schemars_default_filter")]
     pub filter: Option<FilterResults>,
+}
+
+fn _schemars_default_levenshtein_query() -> String {
+    "Frxnkfxrt".to_string()
+}
+#[derive(Deserialize, JsonSchema)]
+pub(crate) struct RequestLevenshtein {
+    /// The search query (name of the GeoNames entity).
+    #[validate(length(min = 1))]
+    #[schemars(default = "_schemars_default_levenshtein_query")]
+    pub query: String,
+
+    #[serde(flatten)]
+    pub opts: RequestOptsLevenshtein,
 }
 
 pub(crate) async fn levenshtein(
@@ -129,19 +144,20 @@ pub(crate) async fn levenshtein(
         );
     }
 
-    let distance = request.max_dist.unwrap_or(1);
+    let distance = request.opts.max_dist.unwrap_or(1);
 
-    let query = if let Some(state_limit) = request.state_limit {
+    let query = if let Some(state_limit) = request.opts.state_limit {
         Levenshtein::new_with_limit(&request.query, distance, state_limit)
     } else {
         Levenshtein::new(&request.query, distance)
     };
 
     if let Ok(query) = query {
-        let results = state
-            .searcher
-            .search_with_dist(query, &request.query, &request.max_dist);
-        let results = filter_results(results, &request.filter);
+        let results =
+            state
+                .searcher
+                .search_with_dist(query, &request.query, &request.opts.max_dist);
+        let results = filter_results(results, &request.opts.filter);
 
         (StatusCode::OK, Json(Response::ResultsWithDist(results)))
     } else {

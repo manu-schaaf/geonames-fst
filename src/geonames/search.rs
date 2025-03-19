@@ -15,6 +15,12 @@ use crate::AppState;
 
 use super::data::GeoNamesSearchResult;
 
+#[derive(Deserialize, JsonSchema)]
+pub(crate) struct RequestOptsFind {
+    #[schemars(default = "_schemars_default_filter_class_t")]
+    pub filter: Option<FilterResults>,
+}
+
 fn _schemars_default_query() -> String {
     "Feldberg".to_string()
 }
@@ -31,8 +37,9 @@ pub(crate) struct RequestFind {
     #[validate(length(min = 1))]
     #[schemars(default = "_schemars_default_query")]
     pub query: String,
-    #[schemars(default = "_schemars_default_filter_class_t")]
-    pub filter: Option<FilterResults>,
+
+    #[serde(flatten)]
+    pub opts: RequestOptsFind,
 }
 
 pub(crate) async fn find(
@@ -47,7 +54,7 @@ pub(crate) async fn find(
     }
 
     let results: Vec<GeoNamesSearchResult> =
-        filter_results(state.searcher.get(&request.query), &request.filter);
+        filter_results(state.searcher.get(&request.query), &request.opts.filter);
 
     (StatusCode::OK, Json(Response::Results(results)))
 }
@@ -87,6 +94,15 @@ impl fst::Automaton for RegexSearchAutomaton {
     }
 }
 
+#[derive(Deserialize, JsonSchema)]
+pub(crate) struct RequestOptsRegex {
+    #[schemars(
+        default = "_schemars_default_filter",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub filter: Option<FilterResults>,
+}
+
 fn _schemars_default_regex() -> String {
     "^Frankfurt.*".to_string()
 }
@@ -96,11 +112,9 @@ pub(crate) struct RequestRegex {
     #[validate(length(min = 1))]
     #[schemars(default = "_schemars_default_regex")]
     pub regex: String,
-    #[schemars(
-        default = "_schemars_default_filter",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub filter: Option<FilterResults>,
+
+    #[serde(flatten)]
+    pub opts: RequestOptsRegex,
 }
 
 pub(crate) async fn regex(
@@ -116,7 +130,7 @@ pub(crate) async fn regex(
 
     let dfa = RegexSearchAutomaton::from_str(&request.regex);
     if let Ok(query) = dfa {
-        let results = filter_results(state.searcher.search(query), &request.filter);
+        let results = filter_results(state.searcher.search(query), &request.opts.filter);
 
         (StatusCode::OK, Json(Response::Results(results)))
     } else {
