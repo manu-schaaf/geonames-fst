@@ -1,21 +1,34 @@
 pub mod geonames;
 pub mod routes;
 
+#[cfg(feature = "duui")]
+pub mod duui;
+
 use std::sync::Arc;
 
 use aide::axum::routing::get;
+use aide::axum::IntoApiResponse;
 use aide::{axum::ApiRouter, openapi::OpenApi};
-use axum::response::Redirect;
+use axum::http::StatusCode;
 use axum::Extension;
 use clap::{command, Parser};
+
+#[cfg(feature = "geonames_routes")]
 use routes::geonames_routes;
+use tower_http::trace::TraceLayer;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 
 use crate::geonames::searcher::GeoNamesSearcher;
 use crate::routes::docs::docs_routes;
 
+#[cfg(feature = "duui")]
+use crate::duui::duui_routes;
+
 #[derive(Clone)]
 struct AppState {
     searcher: Arc<GeoNamesSearcher>,
+    #[cfg(feature = "duui")]
     languages: Option<Vec<String>>,
 }
 
@@ -40,9 +53,31 @@ struct Args {
     port: u16,
 }
 
+async fn get_version() -> impl IntoApiResponse {
+    (
+        StatusCode::OK,
+        format!("{}:{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")),
+    )
+}
+
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     let args = Args::parse();
+
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+                // axum logs rejections from built-in extractors with the `axum::rejection`
+                // target, at `TRACE` level. `axum::rejection=trace` enables showing those events
+                format!(
+                    "{}=debug,tower_http=debug,axum::rejection=trace",
+                    env!("CARGO_CRATE_NAME")
+                )
+                .into()
+            }),
+        )
+        .with(tracing_subscriber::fmt::layer())
+        .init();
 
     let mut paths = Vec::new();
     for path in args.paths.iter() {
@@ -83,17 +118,26 @@ async fn main() -> Result<(), anyhow::Error> {
             alternate.as_ref(),
             Some(&args.languages),
         )?),
+        #[cfg(feature = "duui")]
         languages: Some(args.languages),
     };
 
     let mut api = OpenApi::default();
 
     let app = ApiRouter::new()
-        .nest_api_service("/geonames", geonames_routes(app_state.clone()))
-        .nest_api_service("/docs", docs_routes(app_state.clone()))
-        .api_route("/", get(|| async { Redirect::to("/docs/api") }))
+        .route("/", get(get_version))
+        .nest_api_service("/docs", docs_routes(app_state.clone()));
+
+    #[cfg(feature = "geonames_routes")]
+    let app = app.nest_api_service("/geonames", geonames_routes(app_state.clone()));
+
+    #[cfg(feature = "duui")]
+    let app = app.nest_api_service("/v1", duui_routes(app_state.clone()));
+
+    let app = app
         .finish_api(&mut api)
         .layer(Extension(api))
+        .layer(TraceLayer::new_for_http())
         .with_state(app_state);
 
     let listener = tokio::net::TcpListener::bind(format!("{}:{}", args.host, args.port)).await?;

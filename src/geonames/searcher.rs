@@ -52,7 +52,7 @@ impl GeoNamesSearcher {
         &self,
         query: impl Automaton,
         raw: &str,
-        max_dist: &Option<u32>,
+        max_dist: Option<u32>,
     ) -> Vec<GeoNamesSearchResultWithDist> {
         let mut stream = self.map.search(&query).into_stream();
         let mut results = Vec::new();
@@ -60,7 +60,7 @@ impl GeoNamesSearcher {
             let key = String::from_utf8_lossy(key).to_string();
             let dist = levenshtein_dist(raw, &key);
             if let Some(distance) = max_dist {
-                if dist > (*distance as usize) {
+                if distance > 0 && dist > (distance as usize) {
                     continue;
                 }
             }
@@ -85,7 +85,7 @@ impl GeoNamesSearcher {
         for path in gn_paths {
             parse_geonames_file(&path, &mut query_pairs, &mut geonames)?;
         }
-        println!("Read {} search terms", query_pairs.len());
+        tracing::info!("Read {} search terms", query_pairs.len());
 
         if let Some(gn_alternate_paths) = gn_alternate_paths {
             for path in gn_alternate_paths {
@@ -96,7 +96,7 @@ impl GeoNamesSearcher {
                     gn_alternate_languages,
                 )?;
             }
-            println!(
+            tracing::info!(
                 "Read {} search terms (including alternate names)",
                 query_pairs.len()
             );
@@ -134,7 +134,7 @@ impl GeoNamesSearcher {
         };
         let num_bytes = bytes.len();
         let map = Map::new(bytes)?;
-        println!("Built FST with {} bytes", num_bytes);
+        tracing::info!("Built FST with {} bytes", num_bytes);
 
         Ok(GeoNamesSearcher {
             map,

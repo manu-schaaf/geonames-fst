@@ -40,7 +40,7 @@ fn _default_string_none() -> Option<String> {
     None
 }
 
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub(crate) struct FilterResults {
     #[schemars(default = "_default_string_none")]
     pub feature_class: Option<String>,

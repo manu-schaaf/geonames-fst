@@ -6,20 +6,21 @@ use fst::automaton::Str;
 use fst::Automaton;
 use schemars::JsonSchema;
 use serde::Deserialize;
+use serde_aux::prelude::*;
 
 use super::docs::{DocError, DocResults};
 use super::{filter_results, FilterResults, Response, _schemars_default_filter};
 use crate::geonames::data::GeoNamesSearchResultWithDist;
 use crate::AppState;
 
-fn _schemars_default_max_dist() -> Option<u32> {
-    None
-}
 #[derive(Deserialize, JsonSchema)]
 pub(crate) struct RequestOptsStartsWith {
-    /// Filter results by Levenshtein distance. Omit or set to `null` to disable filtering.
-    #[schemars(default = "_schemars_default_max_dist")]
-    pub max_dist: Option<u32>,
+    /// Filter results by Levenshtein distance. Omit or set to `0` to disable filtering.
+    #[serde(
+        default = "default_u32::<0>",
+        deserialize_with = "deserialize_number_from_string"
+    )]
+    pub max_dist: u32,
     #[schemars(default = "_schemars_default_filter")]
     pub filter: Option<FilterResults>,
 }
@@ -51,9 +52,10 @@ pub(crate) async fn starts_with(
 
     let query = Str::new(&request.query).starts_with();
 
-    let results = state
-        .searcher
-        .search_with_dist(query, &request.query, &request.opts.max_dist);
+    let results =
+        state
+            .searcher
+            .search_with_dist(query, &request.query, Some(request.opts.max_dist));
     let results = filter_results(results, &request.opts.filter);
 
     (StatusCode::OK, Json(Response::Results(results)))

@@ -13,14 +13,17 @@ pub(crate) fn docs_routes(state: AppState) -> ApiRouter {
     aide::generate::infer_responses(true);
 
     let router = ApiRouter::new()
-        .api_route("/", get(|| async { Redirect::to("/docs/api") }))
+        .route("/", get(|| async { Redirect::to("/docs/api") }))
         .api_route(
             "/api",
             get_with(
                 Swagger::new("/docs/private/api.json")
                     .with_title("GeoNames FST API")
                     .axum_handler(),
-                |op| op.description("Get the OpenAPI documentation for the GeoNames FST API"),
+                |op| {
+                    op.description("Get the OpenAPI documentation for the GeoNames FST API")
+                        .hidden(true)
+                },
             ),
         )
         .route("/private/api.json", get(serve_docs))
