@@ -1,9 +1,13 @@
-use aide::axum::{routing::get_with, ApiRouter, IntoApiResponse};
-
-use crate::AppState;
 use aide::swagger::Swagger;
-use aide::{axum::routing::get, openapi::OpenApi};
+use aide::{
+    axum::routing::{get, get_with},
+    axum::{ApiRouter, IntoApiResponse},
+    openapi::OpenApi,
+};
 use axum::{response::IntoResponse, Extension, Json};
+
+use crate::geonames::data;
+use crate::AppState;
 
 pub(crate) fn docs_routes(state: AppState) -> ApiRouter {
     aide::generate::infer_responses(true);
@@ -30,4 +34,19 @@ pub(crate) fn docs_routes(state: AppState) -> ApiRouter {
 
 async fn serve_docs(Extension(api): Extension<OpenApi>) -> impl IntoApiResponse {
     Json(api).into_response()
+}
+
+#[derive(serde::Serialize, schemars::JsonSchema)]
+pub(crate) struct DocResults {
+    results: Vec<data::GeoNamesSearchResult>,
+}
+
+#[derive(serde::Serialize, schemars::JsonSchema)]
+pub(crate) struct DocResultsWithDist {
+    results: Vec<data::GeoNamesSearchResultWithDist>,
+}
+
+#[derive(serde::Serialize, schemars::JsonSchema)]
+pub(crate) struct DocError {
+    error: String,
 }

@@ -1,11 +1,13 @@
 use std::str::FromStr;
 
 use aide::axum::IntoApiResponse;
+use aide::transform::TransformOperation;
 use axum::extract::State;
 use axum::{http::StatusCode, Json};
 use schemars::JsonSchema;
 use serde::Deserialize;
 
+use super::docs::{DocError, DocResults};
 use super::regex_automaton::RegexSearchAutomaton;
 use super::{filter_results, FilterResults, Response, _schemars_default_filter};
 use crate::AppState;
@@ -57,4 +59,10 @@ pub(crate) async fn regex(
             Json(Response::Error(format!("RegexError: {:?}", e).to_string())),
         )
     }
+}
+
+pub(crate) fn regex_docs(op: TransformOperation) -> TransformOperation {
+    op.description("Find all GeoNames entries with the specified regex.")
+        .response::<200, Json<DocResults>>()
+        .response_with::<400, Json<DocError>, _>(|t| t.description("The query was empty."))
 }

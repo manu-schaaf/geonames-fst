@@ -1,4 +1,5 @@
 use aide::axum::IntoApiResponse;
+use aide::transform::TransformOperation;
 use axum::extract::State;
 use axum::{http::StatusCode, Json};
 use fst::automaton::Str;
@@ -6,6 +7,7 @@ use fst::Automaton;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
+use super::docs::{DocError, DocResultsWithDist};
 use super::{filter_results, FilterResults, Response, _schemars_default_filter};
 use crate::AppState;
 
@@ -54,4 +56,10 @@ pub(crate) async fn starts_with(
     let results = filter_results(results, &request.opts.filter);
 
     (StatusCode::OK, Json(Response::ResultsWithDist(results)))
+}
+
+pub(crate) fn starts_with_docs(op: TransformOperation) -> TransformOperation {
+    op.description("Find all GeoNames entries that start with the specified string.")
+        .response::<200, Json<DocResultsWithDist>>()
+        .response_with::<400, Json<DocError>, _>(|t| t.description("The query was empty."))
 }

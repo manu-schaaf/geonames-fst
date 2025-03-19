@@ -1,13 +1,14 @@
 use aide::axum::IntoApiResponse;
+use aide::transform::TransformOperation;
 use axum::extract::State;
 use axum::{http::StatusCode, Json};
 use schemars::JsonSchema;
 use serde::Deserialize;
 
+use super::docs::{DocError, DocResults};
 use super::{filter_results, FilterResults, Response};
-use crate::AppState;
-
 use crate::geonames::data::GeoNamesSearchResult;
+use crate::AppState;
 
 fn _schemars_default_filter_class_t() -> Option<FilterResults> {
     Some(FilterResults {
@@ -51,4 +52,10 @@ pub(crate) async fn find(
         filter_results(state.searcher.find(&request.query), &request.opts.filter);
 
     (StatusCode::OK, Json(Response::Results(results)))
+}
+
+pub(crate) fn find_docs(op: TransformOperation) -> TransformOperation {
+    op.description("Find all GeoNames entries with the specified name.")
+        .response::<200, Json<DocResults>>()
+        .response_with::<400, Json<DocError>, _>(|t| t.description("The query was empty."))
 }

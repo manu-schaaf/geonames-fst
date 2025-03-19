@@ -6,19 +6,15 @@ pub mod regex;
 pub mod regex_automaton;
 pub mod starts_with;
 
-use find::find;
-use fuzzy::fuzzy;
-use levenshtein::levenshtein;
-use regex::regex;
-use starts_with::starts_with;
+use find::{find, find_docs};
+use fuzzy::{fuzzy, fuzzy_docs};
+use levenshtein::{levenshtein, levenshtein_docs};
+use regex::{regex, regex_docs};
+use starts_with::{starts_with, starts_with_docs};
 
 use crate::geonames::data;
 
-use aide::{
-    axum::{routing::post_with, ApiRouter},
-    transform::TransformOperation,
-};
-use axum::Json;
+use aide::axum::{routing::post_with, ApiRouter};
 
 use crate::AppState;
 
@@ -76,52 +72,4 @@ where
         }
     }
     results
-}
-
-#[derive(serde::Serialize, schemars::JsonSchema)]
-struct _DocResults {
-    results: Vec<data::GeoNamesSearchResult>,
-}
-
-#[derive(serde::Serialize, schemars::JsonSchema)]
-struct _DocResultsWithDist {
-    results: Vec<data::GeoNamesSearchResultWithDist>,
-}
-
-#[derive(serde::Serialize, schemars::JsonSchema)]
-struct _DocError {
-    error: String,
-}
-
-fn find_docs(op: TransformOperation) -> TransformOperation {
-    op.description("Find all GeoNames entries with the specified name.")
-        .response::<200, Json<_DocResults>>()
-        .response_with::<400, Json<_DocError>, _>(|t| t.description("The query was empty."))
-}
-
-fn regex_docs(op: TransformOperation) -> TransformOperation {
-    op.description("Find all GeoNames entries with the specified regex.")
-        .response::<200, Json<_DocResults>>()
-        .response_with::<400, Json<_DocError>, _>(|t| t.description("The query was empty."))
-}
-
-fn starts_with_docs(op: TransformOperation) -> TransformOperation {
-    op.description("Find all GeoNames entries that start with the specified string.")
-        .response::<200, Json<_DocResultsWithDist>>()
-        .response_with::<400, Json<_DocError>, _>(|t| t.description("The query was empty."))
-}
-
-fn fuzzy_docs(op: TransformOperation) -> TransformOperation {
-    op.description(
-        "Find all GeoNames entries that match the fuzzy search query with a maximum edit distance.",
-    )
-    .response::<200, Json<_DocResultsWithDist>>()
-    .response_with::<400, Json<_DocError>, _>(|t| t.description("The query was empty."))
-}
-
-fn levenshtein_docs(op: TransformOperation) -> TransformOperation {
-    op.description("Find all GeoNames entries that match the Levenshtein search query with a maximum edit distance.<br><strong>NOTE:</strong> The Levenshtein search may consume a lot of memory and is thus capped to a maximum number of states of 10000 by default. If your search query exceeds this limit, you will recieve an error (406 Not Acceptable). The number of required states depends on the <code>max_dist</code>.<br><br><em>Use with caution!</em>")
-        .response::<200, Json<_DocResultsWithDist>>()
-        .response_with::<400, Json<_DocError>, _>(|t|t.description("The query was empty."))
-        .response_with::<406, Json<_DocError>, _>(|t| t.description("The search query exceeded the maximum number of states"))
 }

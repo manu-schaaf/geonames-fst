@@ -1,10 +1,12 @@
 use aide::axum::IntoApiResponse;
+use aide::transform::TransformOperation;
 use axum::extract::State;
 use axum::{http::StatusCode, Json};
 use fst::automaton::Subsequence;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
+use super::docs::{DocError, DocResultsWithDist};
 use super::{filter_results, FilterResults, Response, _schemars_default_filter};
 use crate::AppState;
 
@@ -54,4 +56,12 @@ pub(crate) async fn fuzzy(
     let results = filter_results(results, &request.opts.filter);
 
     (StatusCode::OK, Json(Response::ResultsWithDist(results)))
+}
+
+pub(crate) fn fuzzy_docs(op: TransformOperation) -> TransformOperation {
+    op.description(
+        "Find all GeoNames entries that match the fuzzy search query with a maximum edit distance.",
+    )
+    .response::<200, Json<DocResultsWithDist>>()
+    .response_with::<400, Json<DocError>, _>(|t| t.description("The query was empty."))
 }
