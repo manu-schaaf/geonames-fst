@@ -56,7 +56,7 @@ pub(crate) async fn starts_with(
         .search_with_dist(query, &request.query, &request.opts.max_dist);
     let results = filter_results(results, &request.opts.filter);
 
-    (StatusCode::OK, Json(Response::ResultsWithDist(results)))
+    (StatusCode::OK, Json(Response::Results(results)))
 }
 
 pub(crate) fn starts_with_docs(op: TransformOperation) -> TransformOperation {

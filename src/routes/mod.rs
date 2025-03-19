@@ -29,11 +29,9 @@ pub(crate) fn geonames_routes(state: AppState) -> ApiRouter {
 }
 
 #[derive(serde::Serialize, schemars::JsonSchema)]
-pub(crate) enum Response {
+pub(crate) enum Response<T> {
     #[serde(rename = "results")]
-    Results(Vec<data::GeoNamesSearchResult>),
-    #[serde(rename = "results")]
-    ResultsWithDist(Vec<data::GeoNamesSearchResultWithDist>),
+    Results(Vec<T>),
     #[serde(rename = "error")]
     Error(String),
 }

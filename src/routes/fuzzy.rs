@@ -56,7 +56,7 @@ pub(crate) async fn fuzzy(
         .search_with_dist(query, &request.query, &request.opts.max_dist);
     let results = filter_results(results, &request.opts.filter);
 
-    (StatusCode::OK, Json(Response::ResultsWithDist(results)))
+    (StatusCode::OK, Json(Response::Results(results)))
 }
 
 pub(crate) fn fuzzy_docs(op: TransformOperation) -> TransformOperation {
