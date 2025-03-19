@@ -25,8 +25,8 @@ struct Args {
     #[clap(
         short,
         long,
-        help = "Languages to consider for the alternatives.",
-        default_value = ",de,deu,ger",
+        help = "Languages to consider for the alternative names.",
+        default_value = ",de,deu,ger,de-DE,de-AT,de-CH",
         value_delimiter = ','
     )]
     languages: Vec<String>,
