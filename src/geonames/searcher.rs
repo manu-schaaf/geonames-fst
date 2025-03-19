@@ -15,7 +15,7 @@ pub struct GeoNamesSearcher {
 }
 
 impl GeoNamesSearcher {
-    pub fn get(&self, query: &str) -> Vec<GeoNamesSearchResult> {
+    pub fn find(&self, query: &str) -> Vec<GeoNamesSearchResult> {
         self.map
             .get(query)
             .map(|gnd| {

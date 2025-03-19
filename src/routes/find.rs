@@ -48,7 +48,7 @@ pub(crate) async fn find(
     }
 
     let results: Vec<GeoNamesSearchResult> =
-        filter_results(state.searcher.get(&request.query), &request.opts.filter);
+        filter_results(state.searcher.find(&request.query), &request.opts.filter);
 
     (StatusCode::OK, Json(Response::Results(results)))
 }
