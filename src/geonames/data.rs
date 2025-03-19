@@ -57,6 +57,16 @@ impl PartialOrd for GeoNamesSearchResult {
     }
 }
 
+impl From<GeoNamesSearchResult> for GeoNamesSearchResultWithDist {
+    fn from(val: GeoNamesSearchResult) -> Self {
+        GeoNamesSearchResultWithDist {
+            key: val.key,
+            entry: val.entry,
+            distance: 0,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Serialize, JsonSchema)]
 pub struct GeoNamesSearchResultWithDist {
     key: MatchKey,
