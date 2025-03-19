@@ -33,10 +33,7 @@ pub(crate) fn parse_geonames_file(
             record.get(12).unwrap_or("").to_string(),
             record.get(13).unwrap_or("").to_string(),
         );
-        let elevation: Option<i16> = record
-            .get(15)
-            .map(|i| i.parse().map_or(None, |i| Some(i)))
-            .flatten();
+        let elevation: Option<i16> = record.get(15).and_then(|i| i.parse().ok());
 
         if name_ascii != name {
             // set_of_seen_names.insert(name_ascii.clone());
