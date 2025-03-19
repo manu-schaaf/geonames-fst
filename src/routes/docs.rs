@@ -19,8 +19,7 @@ pub(crate) fn docs_routes(state: AppState) -> ApiRouter {
             ),
         )
         .route("/private/api.json", get(serve_docs))
-        .with_state(state)
-        ;
+        .with_state(state);
 
     // Afterwards we disable response inference because
     // it might be incorrect for other routes.

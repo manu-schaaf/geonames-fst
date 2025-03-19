@@ -1,3 +1,4 @@
+pub mod docs;
 pub mod find;
 pub mod fuzzy;
 pub mod levenshtein;

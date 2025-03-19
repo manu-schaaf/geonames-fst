@@ -1,4 +1,3 @@
-pub mod docs;
 pub mod geonames;
 pub mod routes;
 
@@ -9,8 +8,8 @@ use axum::Extension;
 use clap::{command, Parser};
 use routes::geonames_routes;
 
-use crate::docs::docs_routes;
 use crate::geonames::searcher::GeoNamesSearcher;
+use crate::routes::docs::docs_routes;
 
 #[derive(Clone)]
 struct AppState {
