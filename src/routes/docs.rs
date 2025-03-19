@@ -4,6 +4,7 @@ use aide::{
     axum::{ApiRouter, IntoApiResponse},
     openapi::OpenApi,
 };
+use axum::response::Redirect;
 use axum::{response::IntoResponse, Extension, Json};
 
 use crate::AppState;
@@ -12,6 +13,7 @@ pub(crate) fn docs_routes(state: AppState) -> ApiRouter {
     aide::generate::infer_responses(true);
 
     let router = ApiRouter::new()
+        .api_route("/", get(|| async { Redirect::to("/docs/api") }))
         .api_route(
             "/api",
             get_with(

@@ -3,7 +3,9 @@ pub mod routes;
 
 use std::sync::Arc;
 
+use aide::axum::routing::get;
 use aide::{axum::ApiRouter, openapi::OpenApi};
+use axum::response::Redirect;
 use axum::Extension;
 use clap::{command, Parser};
 use routes::geonames_routes;
@@ -87,6 +89,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let app = ApiRouter::new()
         .nest_api_service("/geonames", geonames_routes(app_state.clone()))
         .nest_api_service("/docs", docs_routes(app_state.clone()))
+        .api_route("/", get(|| async { Redirect::to("/docs/api") }))
         .finish_api(&mut api)
         .layer(Extension(api))
         .with_state(app_state);
