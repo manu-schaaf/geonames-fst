@@ -3,14 +3,23 @@ use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Serialize, JsonSchema)]
 pub struct GeoNamesEntry {
+    /// Unique identifier of the record
     pub id: u64,
+    /// Canonical name of the entry, usually English.
     pub name: String,
+    /// Latitude of the GeoNames record
     pub latitude: f32,
+    /// Longitude of the GeoNames record
     pub longitude: f32,
+    /// Feature class of the GeoNames record
     pub feature_class: String,
+    /// Feature code of the GeoNames record
     pub feature_code: String,
+    /// Country code of the GeoNames record
     pub country_code: String,
+    /// Administrative divisions of the GeoNames record, some of which may be empty.
     pub administrative_divisions: (String, String, String, String),
+    /// Elevation of the GeoNames record, if applicable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub elevation: Option<i16>,
 }

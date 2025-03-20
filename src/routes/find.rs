@@ -24,7 +24,7 @@ pub(crate) struct RequestOptsFind {
 }
 
 fn _schemars_default_query() -> String {
-    "Feldberg".to_string()
+    "Großer Feldberg".to_string()
 }
 #[derive(Deserialize, JsonSchema)]
 pub(crate) struct RequestFind {
