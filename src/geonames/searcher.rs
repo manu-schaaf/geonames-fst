@@ -77,8 +77,8 @@ impl GeoNamesSearcher {
 
     pub fn build(
         gn_paths: Vec<String>,
-        gn_alternate_paths: Option<Vec<String>>,
-        gn_alternate_languages: Option<Vec<String>>,
+        gn_alternate_paths: Option<&Vec<String>>,
+        gn_alternate_languages: Option<&Vec<String>>,
     ) -> Result<GeoNamesSearcher, anyhow::Error> {
         let mut query_pairs: Vec<(String, MatchType)> = Vec::new();
         let mut geonames: HashMap<u64, GeoNamesEntry> = HashMap::new();
@@ -90,10 +90,10 @@ impl GeoNamesSearcher {
         if let Some(gn_alternate_paths) = gn_alternate_paths {
             for path in gn_alternate_paths {
                 parse_alternate_names_file(
-                    &path,
+                    path,
                     &mut query_pairs,
                     &geonames,
-                    gn_alternate_languages.as_ref(),
+                    gn_alternate_languages,
                 )?;
             }
             println!(

@@ -16,6 +16,7 @@ use crate::routes::docs::docs_routes;
 #[derive(Clone)]
 struct AppState {
     searcher: Arc<GeoNamesSearcher>,
+    languages: Option<Vec<String>>,
 }
 
 #[derive(Parser, Debug)]
@@ -79,9 +80,10 @@ async fn main() -> Result<(), anyhow::Error> {
     let app_state = AppState {
         searcher: Arc::new(GeoNamesSearcher::build(
             paths,
-            alternate,
-            Some(args.languages),
+            alternate.as_ref(),
+            Some(&args.languages),
         )?),
+        languages: Some(args.languages),
     };
 
     let mut api = OpenApi::default();
