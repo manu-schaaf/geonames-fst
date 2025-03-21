@@ -19,6 +19,7 @@ pub(crate) fn duui_routes(state: AppState) -> ApiRouter {
             "/communication_layer",
             ServeFile::new("resources/communication_layer.lua"),
         )
+        .route_service("/typesystem", ServeFile::new("resources/typesystem.xml"))
         .api_route(
             "/documentation",
             get_with(v1_documentation, |op| {
