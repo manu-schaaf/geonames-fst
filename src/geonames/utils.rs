@@ -27,19 +27,15 @@ pub(crate) fn parse_geonames_file(
         let feature_class: String = record.get(6).unwrap_or("<missing>").to_string();
         let feature_code: String = record.get(7).unwrap_or("<missing>").to_string();
         let country_code: String = record.get(8).unwrap_or("<missing>").to_string();
-        let administrative_divisions: (String, String, String, String) = (
-            record.get(10).unwrap_or("").to_string(),
-            record.get(11).unwrap_or("").to_string(),
-            record.get(12).unwrap_or("").to_string(),
-            record.get(13).unwrap_or("").to_string(),
-        );
+        let adm1 = record.get(10).unwrap_or("").to_string();
+        let adm2 = record.get(11).unwrap_or("").to_string();
+        let adm3 = record.get(12).unwrap_or("").to_string();
+        let adm4 = record.get(13).unwrap_or("").to_string();
         let elevation: Option<i16> = record.get(15).and_then(|i| i.parse().ok());
 
         if name_ascii != name {
-            // set_of_seen_names.insert(name_ascii.clone());
             query_pairs.push((name_ascii, MatchType::AsciiName { id }));
         }
-        // set_of_seen_names.insert(name.clone());
         query_pairs.push((name.clone(), MatchType::Name { id }));
 
         geonames.insert(
@@ -52,7 +48,10 @@ pub(crate) fn parse_geonames_file(
                 feature_class,
                 feature_code,
                 country_code,
-                administrative_divisions,
+                adm1,
+                adm2,
+                adm3,
+                adm4,
                 elevation,
             },
         );

@@ -1,10 +1,12 @@
 -- Bind static classes from java
 StandardCharsets = luajava.bindClass("java.nio.charset.StandardCharsets")
 JCasUtil = luajava.bindClass("org.apache.uima.fit.util.JCasUtil")
-Token = luajava.bindClass("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token")
 
-location_type = "de.tudarmstadt.ukp.dkpro.core.api.ner.type.Location"
-
+local annotation_type = "de.tudarmstadt.ukp.dkpro.core.api.ner.type.Location"
+local references = {}
+local headers = {
+    ["Content-Type"] = "application/json"
+}
 
 -- This "serialize" function is called to transform the CAS object into an stream that is sent to the annotator
 -- Inputs:
@@ -12,21 +14,21 @@ location_type = "de.tudarmstadt.ukp.dkpro.core.api.ner.type.Location"
 --  - outputStream: Stream that is sent to the annotator, can be e.g. a string, JSON payload, ...
 --  - parameters: Table/Dictonary of parameters that should be used to configure the annotator
 function serialize(inputCas, outputStream, parameters)
-    local doc_text = inputCas:getDocumentText()
-    local doc_lang = inputCas:getDocumentLanguage()
+    references = {}
+    if parameters ~= nil and parameters["annotation_type"] ~= nil then
+        annotation_type = parameters["annotation_type"]
+    end
 
-    local Location = luajava.bindClass(parameters["annotation_type"] or location_type)
-
+    local nes_it = JCasUtil:select(inputCas, luajava.bindClass(annotation_type)):iterator()
     local entities = {}
-    local nes_it = JCasUtil:select(inputCas, Location):iterator()
-    local ne, values = nil, nil
     while nes_it:hasNext() do
-        ne = nes_it:next()
-        values = {}
-        values["begin"] = tostring(ne:getBegin())
-        values["end"] = tostring(ne:getEnd())
-        values["text"] = ne:getCoveredText()
-        table.insert(entities, values)
+        local ne = nes_it:next()
+        table.insert(references, ne)
+
+        table.insert(entities, {
+            ["reference"] = tostring(#references),
+            ["text"] = ne:getCoveredText()
+        })
     end
 
     local query = {
@@ -59,6 +61,10 @@ function serialize(inputCas, outputStream, parameters)
     end
 
     outputStream:write(json.encode(query))
+
+    return {
+        headers = headers,
+    }
 end
 
 -- This "deserialize" function is called on receiving the results from the annotator that have to be transformed into a CAS object
@@ -85,8 +91,6 @@ function deserialize(inputCas, inputStream)
 
         -- TODO: Requires UIMATypeSystem version >= 3.0.6
         annotation = luajava.newInstance("org.texttechnologylab.annotation.geonames.GeoNamesEntity", inputCas)
-        annotation:setBegin(entity["begin"])
-        annotation:setEnd(entity["end"])
         annotation:setId(tonumber(gn["id"]))
         annotation:setName(gn["name"])
         annotation:setLatitude(gn["latitude"])
@@ -94,12 +98,24 @@ function deserialize(inputCas, inputStream)
         annotation:setFeatureClass(gn["feature_class"])
         annotation:setFeatureCode(gn["feature_code"])
         annotation:setCountryCode(gn["country_code"])
+        annotation:setAdm1(gn["adm1"])
+        annotation:setAdm2(gn["adm2"])
+        annotation:setAdm3(gn["adm3"])
+        annotation:setAdm4(gn["adm4"])
 
-        local adm = luajava.newInstance("org.apache.uima.jcas.cas.StringArray", inputCas, 4)
-        for i, value in ipairs(gn["administrative_divisions"]) do
-            adm:set(i - 1, value)
+        if gn["elevation"] ~= nil then
+            annotation:setElevation(gn["elevation"])
         end
-        annotation:setAdm(adm)
+
+        local reference = references[tonumber(entity["reference"])]
+        if reference == nil then
+            error("Failed to resolve reference annotation with index " .. entity["reference"])
+        else
+            annotation:setReferenceAnnotation(reference)
+            annotation:setBegin(reference:getBegin())
+            annotation:setEnd(reference:getEnd())
+        end
+
         annotation:addToIndexes()
     end
 end

@@ -22,8 +22,7 @@ use crate::AppState;
 
 fn _default_entity() -> Entity {
     Entity {
-        begin: 0,
-        end: 15,
+        reference: 0,
         text: "Großer Feldberg".to_string(),
     }
 }
@@ -36,16 +35,13 @@ fn _lua_number_to_int(lua_number: f64) -> u32 {
 #[schemars(default = "_default_entity")]
 pub(crate) struct Entity {
     #[serde(deserialize_with = "deserialize_number_from_string")]
-    pub begin: u32,
-    #[serde(deserialize_with = "deserialize_number_from_string")]
-    pub end: u32,
+    pub reference: u32,
     pub text: String,
 }
 
 #[derive(serde::Serialize, schemars::JsonSchema)]
 pub(crate) struct AnnotatedEntity {
-    pub begin: u32,
-    pub end: u32,
+    pub reference: u32,
     #[serde(flatten)]
     pub annotation: GeoNamesSearchResultWithDist,
 }
@@ -53,8 +49,7 @@ pub(crate) struct AnnotatedEntity {
 impl AnnotatedEntity {
     pub fn annotate(entity: &Entity, annotation: GeoNamesSearchResultWithDist) -> Self {
         Self {
-            begin: entity.begin,
-            end: entity.end,
+            reference: entity.reference,
             annotation,
         }
     }

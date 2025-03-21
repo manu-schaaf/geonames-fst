@@ -18,7 +18,10 @@ pub struct GeoNamesEntry {
     /// Country code of the GeoNames record
     pub country_code: String,
     /// Administrative divisions of the GeoNames record, some of which may be empty.
-    pub administrative_divisions: (String, String, String, String),
+    pub adm1: String,
+    pub adm2: String,
+    pub adm3: String,
+    pub adm4: String,
     /// Elevation of the GeoNames record, if applicable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub elevation: Option<i16>,
