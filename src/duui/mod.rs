@@ -17,7 +17,7 @@ pub(crate) fn duui_routes(state: AppState) -> ApiRouter {
         .api_route("/process", post_with(v1_process, v1_process_docs))
         .route_service(
             "/communication_layer",
-            ServeFile::new("lua/communication_layer.lua"),
+            ServeFile::new("resources/communication_layer.lua"),
         )
         .api_route(
             "/documentation",
