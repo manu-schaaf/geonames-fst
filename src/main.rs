@@ -51,6 +51,8 @@ struct Args {
     host: String,
     #[clap(long, default_value = "8000")]
     port: u16,
+    #[clap(long, default_value = "4")]
+    workers: usize,
 }
 
 async fn get_version() -> impl IntoApiResponse {
@@ -60,10 +62,7 @@ async fn get_version() -> impl IntoApiResponse {
     )
 }
 
-#[tokio::main]
-async fn main() -> Result<(), anyhow::Error> {
-    let args = Args::parse();
-
+async fn serve(args: Args) -> Result<(), anyhow::Error> {
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
@@ -143,4 +142,15 @@ async fn main() -> Result<(), anyhow::Error> {
     let listener = tokio::net::TcpListener::bind(format!("{}:{}", args.host, args.port)).await?;
     axum::serve(listener, app).await?;
     Ok(())
+}
+
+fn main() -> Result<(), anyhow::Error> {
+    let args = Args::parse();
+
+    tokio::runtime::Builder::new_current_thread()
+        .worker_threads(args.workers)
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(async { serve(args).await })
 }
