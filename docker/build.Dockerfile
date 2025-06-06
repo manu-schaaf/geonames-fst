@@ -1,4 +1,4 @@
-FROM rust:latest AS builder
+FROM rust:slim AS builder
 
 COPY src /build/src
 COPY Cargo.toml /build/Cargo.toml
