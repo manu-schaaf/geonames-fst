@@ -141,6 +141,7 @@ async fn serve(args: Args) -> Result<(), anyhow::Error> {
         Some(args.languages.iter().map(|s| s.to_string()).collect())
     };
 
+    tracing::info!("Building GeoNamesSearcher");
     let app_state = AppState {
         searcher: Arc::new(GeoNamesSearcher::build(
             paths,
@@ -152,6 +153,7 @@ async fn serve(args: Args) -> Result<(), anyhow::Error> {
         #[cfg(feature = "duui")]
         timestamp,
     };
+    tracing::info!("Built GeoNamesSearcher");
 
     let mut api = OpenApi::default();
 

@@ -80,15 +80,17 @@ impl GeoNamesSearcher {
         gn_alternate_paths: Option<&Vec<String>>,
         gn_alternate_languages: Option<&Vec<String>>,
     ) -> Result<GeoNamesSearcher, anyhow::Error> {
+        tracing::info!("Reading GeoNames from {} files", gn_paths.len());
         let mut query_pairs: Vec<(String, MatchType)> = Vec::new();
         let mut geonames: HashMap<u64, GeoNamesEntry> = HashMap::new();
         for path in gn_paths {
             parse_geonames_file(&path, &mut query_pairs, &mut geonames)?;
         }
-        tracing::info!("Read {} search terms", query_pairs.len());
+        tracing::info!("Read {} GeoNames", query_pairs.len());
 
-        if let Some(gn_alternate_paths) = gn_alternate_paths {
-            for path in gn_alternate_paths {
+        if let Some(paths) = gn_alternate_paths {
+            tracing::info!("Reading alternate GeoNames from {} files", paths.len());
+            for path in paths {
                 parse_alternate_names_file(
                     path,
                     &mut query_pairs,
@@ -102,11 +104,12 @@ impl GeoNamesSearcher {
             );
         }
 
+        tracing::info!("Sorting GeoNames");
         query_pairs.sort_by(|a, b| a.0.cmp(&b.0));
 
+        tracing::info!("Preparing search terms");
         let mut search_terms: Vec<String> = Vec::new();
         let mut search_matches: Vec<Vec<MatchType>> = Vec::new();
-
         {
             let mut last_term: String = "".to_string();
             for (term, mtch) in query_pairs.into_iter() {
@@ -124,6 +127,7 @@ impl GeoNamesSearcher {
             }
         }
 
+        tracing::info!("Building FST");
         let bytes = {
             let mut build = MapBuilder::memory();
             search_terms.into_iter().enumerate().for_each(|(i, term)| {
