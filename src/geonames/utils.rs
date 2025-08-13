@@ -1,19 +1,83 @@
 use std::collections::HashSet;
+use std::io::{BufReader, Read};
+use std::path::Path;
 use std::{collections::HashMap, fs::File};
-use std::{f32, io};
+use std::f32;
 
 use anyhow::anyhow;
+use tracing::{event, Level};
+
+#[cfg(feature = "bzip2")]
+use bzip2_rs::DecoderReader as Bzip2Decoder;
+#[cfg(feature = "gzip")]
+use flate2::bufread::GzDecoder;
+#[cfg(feature = "xz")]
+use xz::bufread::XzDecoder;
 
 use super::data::{GeoNamesEntry, MatchType};
+
+pub fn get_reader(path: &Path) -> anyhow::Result<Box<dyn Read>> {
+    let file = File::open(path).expect("Could not open file");
+    let buf_reader: BufReader<File> = BufReader::new(file);
+
+    let extension = match Path::new(path).extension() {
+        None => "<none>",
+        Some(ext) => ext.to_str().unwrap(),
+    };
+    match extension {
+        // No compression, the only path that is always supported
+        "txt" | "<none>" => Ok(Box::new(buf_reader)),
+
+        // GeoNames dumps come in zip files, which in turn may contain multiple files.
+        // We require the user to unpack the zip file first, passing only the required files into the program.
+        "zip" => Err(anyhow!("Unpacked GeoNames dump files are not supported! Please unpack the GeoNames zip file first.")),
+
+        #[cfg(feature = "bzip2")]
+        "bz2" => Ok(Box::new(Bzip2Decoder::new(buf_reader))),
+        #[cfg(not(feature = "bzip2"))]
+        "bz2" => Err(anyhow!("This binary was not compiled with the bzip2 feature enabled! Cannot read {path:?}.")),
+        
+        #[cfg(feature = "gzip")]
+        "gz" => Ok(Box::new(GzDecoder::new(buf_reader))),
+        #[cfg(not(feature = "gzip"))]
+        "gz" => Err(anyhow!("This binary was not compiled with the gzip feature enabled! Cannot read {path:?}.")),
+
+        #[cfg(feature = "xz")]
+        "xz" => Ok(Box::new(XzDecoder::new(buf_reader))),
+        #[cfg(not(feature = "xz"))]
+        "xz" => Err(anyhow!("This binary was not compiled with the xz feature enabled! Cannot read {path:?}.")),
+
+        // If the extension is not known 
+        unknown => {
+            event!(
+                    Level::WARN,
+                    "Unknown GeoNames file extension '{}', falling back to plain text! Supported extensions are: {}",
+                    unknown,
+                    [
+                        "txt",
+                        #[cfg(feature = "bzip2")]
+                        "bz2",
+                        #[cfg(feature = "gzip")]
+                        "gz",
+                        #[cfg(feature = "xz")]
+                        "xz",
+                    ].join(", ")
+                );
+            Ok(Box::new(buf_reader))
+        }
+    }
+}
 
 pub(crate) fn parse_geonames_file(
     path: &str,
     query_pairs: &mut Vec<(String, MatchType)>,
     geonames: &mut HashMap<u64, GeoNamesEntry>,
 ) -> Result<(), anyhow::Error> {
+    let reader: Box<dyn Read> = get_reader(Path::new(path))?;
+
     let mut rdr = csv::ReaderBuilder::new()
         .delimiter(b'\t')
-        .from_reader(io::BufReader::new(File::open(path)?));
+        .from_reader(reader);
 
     for row in rdr.records() {
         let record = row?;
@@ -65,9 +129,11 @@ pub(crate) fn parse_alternate_names_file(
     geonames: &HashMap<u64, GeoNamesEntry>,
     include_languages: Option<&Vec<String>>,
 ) -> Result<(), anyhow::Error> {
+    let reader: Box<dyn Read> = get_reader(Path::new(path))?;
+
     let mut rdr = csv::ReaderBuilder::new()
         .delimiter(b'\t')
-        .from_reader(io::BufReader::new(File::open(path)?));
+        .from_reader(reader);
 
     let include_languages: Option<HashSet<&String>> = include_languages.map(HashSet::from_iter);
 
