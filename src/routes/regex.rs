@@ -57,7 +57,7 @@ pub(crate) async fn regex(
 
         (
             StatusCode::BAD_REQUEST,
-            Json(Response::Error(format!("RegexError: {:?}", e).to_string())),
+            Json(Response::Error(format!("RegexError: {e:?}").to_string())),
         )
     }
 }

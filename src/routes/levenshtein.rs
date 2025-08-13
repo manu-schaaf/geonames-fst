@@ -74,7 +74,7 @@ pub(crate) async fn levenshtein(
         Err(error) => (
             StatusCode::NOT_ACCEPTABLE,
             Json(Response::Error(
-                format!("LevenshteinError: {:?}", error).to_string(),
+                format!("LevenshteinError: {error:?}").to_string(),
             )),
         ),
     }

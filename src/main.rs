@@ -30,6 +30,8 @@ struct AppState {
     searcher: Arc<GeoNamesSearcher>,
     #[cfg(feature = "duui")]
     languages: Option<Vec<String>>,
+    #[cfg(feature = "duui")]
+    timestamp: Option<String>,
 }
 
 #[derive(Parser, Debug)]
@@ -53,6 +55,9 @@ struct Args {
     port: u16,
     #[clap(long, default_value = "4")]
     workers: usize,
+    #[cfg(feature = "duui")]
+    #[clap(long)]
+    timestamp: Option<String>,
 }
 
 async fn get_version() -> impl IntoApiResponse {
@@ -111,6 +116,18 @@ async fn serve(args: Args) -> Result<(), anyhow::Error> {
         None
     };
 
+    #[cfg(feature = "duui")]
+    let timestamp = args.timestamp.map(|timestamp| {
+        if std::fs::exists(&timestamp).unwrap_or_default() {
+            // Load the timestamp from the file
+            Some(std::fs::read_to_string(&timestamp).unwrap_or_else(|_| {
+                panic!("Failed to read timestamp from file {timestamp}")
+            }).trim().to_string())
+        } else {
+            Some(timestamp)
+        }
+    });
+
     let app_state = AppState {
         searcher: Arc::new(GeoNamesSearcher::build(
             paths,
@@ -119,6 +136,8 @@ async fn serve(args: Args) -> Result<(), anyhow::Error> {
         )?),
         #[cfg(feature = "duui")]
         languages: Some(args.languages),
+        #[cfg(feature = "duui")]
+        timestamp: timestamp.unwrap_or_default(),
     };
 
     let mut api = OpenApi::default();

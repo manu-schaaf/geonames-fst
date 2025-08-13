@@ -126,6 +126,15 @@ impl Default for DocumentModification {
     }
 }
 
+impl DocumentModification {
+    fn with_comment(comment: String) -> Self {
+        Self {
+            comment,
+            ..Default::default()
+        }
+    }
+}
+
 #[derive(serde::Serialize, schemars::JsonSchema)]
 pub(crate) struct Results {
     pub results: Vec<AnnotatedEntity>,
@@ -136,7 +145,12 @@ pub(crate) async fn v1_process(
     State(state): State<AppState>,
     Json(request): Json<RequestProcess>,
 ) -> impl IntoApiResponse {
-    let modification = DocumentModification::default();
+    let modification = DocumentModification::with_comment(
+        state
+            .timestamp
+            .map(|t| format!("GeoNames Date: {t}"))
+            .unwrap_or_default(),
+    );
 
     let results = match request.options {
         SearchMode::Find(options) => process_find(
