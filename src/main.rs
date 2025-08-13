@@ -49,6 +49,8 @@ struct Args {
         value_delimiter = ','
     )]
     languages: Vec<String>,
+    #[clap(long, help = "Include all languages in the alternate name resolution.")]
+    all_languages: bool,
     #[clap(long, default_value = "0.0.0.0")]
     host: String,
     #[clap(long, default_value = "8000")]
@@ -120,22 +122,31 @@ async fn serve(args: Args) -> Result<(), anyhow::Error> {
     let timestamp = args.timestamp.map(|timestamp| {
         if std::fs::exists(&timestamp).unwrap_or_default() {
             // Load the timestamp from the file
-            Some(std::fs::read_to_string(&timestamp).unwrap_or_else(|_| {
-                panic!("Failed to read timestamp from file {timestamp}")
-            }).trim().to_string())
+            Some(
+                std::fs::read_to_string(&timestamp)
+                    .unwrap_or_else(|_| panic!("Failed to read timestamp from file {timestamp}"))
+                    .trim()
+                    .to_string(),
+            )
         } else {
             Some(timestamp)
         }
     });
 
+    let languages = if args.all_languages | args.languages.is_empty() {
+        None
+    } else {
+        Some(args.languages.iter().map(|s| s.to_string()).collect())
+    };
+
     let app_state = AppState {
         searcher: Arc::new(GeoNamesSearcher::build(
             paths,
             alternate.as_ref(),
-            Some(&args.languages),
+            languages.as_ref(),
         )?),
         #[cfg(feature = "duui")]
-        languages: Some(args.languages),
+        languages: languages,
         #[cfg(feature = "duui")]
         timestamp: timestamp.unwrap_or_default(),
     };
