@@ -133,6 +133,24 @@ impl DocumentModification {
             ..Default::default()
         }
     }
+
+    fn with_duui_commment(state: &AppState) -> Self {
+        let mut comment = Vec::new();
+        if let Some(timestamp) = state.timestamp.as_ref() {
+            comment.push(format!("GeoNames Date: {timestamp}"));
+        }
+        if let Some(languages) = state.languages.as_ref() {
+            comment.push(format!(
+                "Languages: {}",
+                languages
+                    .iter()
+                    .map(|l| format!("'{l}'"))
+                    .collect::<Vec<String>>()
+                    .join(", ")
+            ));
+        }
+        Self::with_comment(comment.join("; "))
+    }
 }
 
 #[derive(serde::Serialize, schemars::JsonSchema)]
@@ -145,12 +163,7 @@ pub(crate) async fn v1_process(
     State(state): State<AppState>,
     Json(request): Json<RequestProcess>,
 ) -> impl IntoApiResponse {
-    let modification = DocumentModification::with_comment(
-        state
-            .timestamp
-            .map(|t| format!("GeoNames Date: {t}"))
-            .unwrap_or_default(),
-    );
+    let modification = DocumentModification::with_duui_commment(&state);
 
     let results = match request.options {
         SearchMode::Find(options) => process_find(

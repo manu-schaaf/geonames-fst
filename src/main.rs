@@ -4,11 +4,13 @@ pub mod routes;
 #[cfg(feature = "duui")]
 pub mod duui;
 
+use std::path::Path;
 use std::sync::Arc;
 
 use aide::axum::routing::get;
 use aide::axum::IntoApiResponse;
 use aide::{axum::ApiRouter, openapi::OpenApi};
+use anyhow::anyhow;
 use axum::http::StatusCode;
 use axum::Extension;
 use clap::{command, Parser};
@@ -99,7 +101,7 @@ async fn serve(args: Args) -> Result<(), anyhow::Error> {
         }
     }
 
-    let alternate = if let Some(alternate) = args.alternate.as_ref() {
+    let alternate_paths = if let Some(alternate) = args.alternate.as_ref() {
         let mut alternate_paths = Vec::new();
         for path in alternate.iter() {
             if std::fs::metadata(path)?.is_dir() {
@@ -119,19 +121,19 @@ async fn serve(args: Args) -> Result<(), anyhow::Error> {
     };
 
     #[cfg(feature = "duui")]
-    let timestamp = args.timestamp.map(|timestamp| {
-        if std::fs::exists(&timestamp).unwrap_or_default() {
-            // Load the timestamp from the file
-            Some(
-                std::fs::read_to_string(&timestamp)
-                    .unwrap_or_else(|_| panic!("Failed to read timestamp from file {timestamp}"))
-                    .trim()
-                    .to_string(),
-            )
+    let timestamp = if let Some(ts) = args.timestamp {
+        if Path::new(&ts).exists() {
+            // If the --timestamp points to a file, load the timestamp from the file
+            match std::fs::read_to_string(&ts) {
+                Ok(t) => Some(t.trim().to_string()),
+                Err(e) => Err(anyhow!("Failed to read timestamp from file {}: {}", ts, e))?,
+            }
         } else {
-            Some(timestamp)
+            Some(ts)
         }
-    });
+    } else {
+        None
+    };
 
     let languages = if args.all_languages | args.languages.is_empty() {
         None
@@ -142,13 +144,13 @@ async fn serve(args: Args) -> Result<(), anyhow::Error> {
     let app_state = AppState {
         searcher: Arc::new(GeoNamesSearcher::build(
             paths,
-            alternate.as_ref(),
+            alternate_paths.as_ref(),
             languages.as_ref(),
         )?),
         #[cfg(feature = "duui")]
-        languages: languages,
+        languages,
         #[cfg(feature = "duui")]
-        timestamp: timestamp.unwrap_or_default(),
+        timestamp,
     };
 
     let mut api = OpenApi::default();
