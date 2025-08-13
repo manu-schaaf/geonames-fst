@@ -1,4 +1,4 @@
-export VERSION := "0.4.2"
+export VERSION := "0.4.3"
 
 build version=VERSION:
     docker build -t geonames-fst:{{version}} -f docker/build.Dockerfile .
